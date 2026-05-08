@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户行为序列 - 行为聚焦交互重设计</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif; background: #fff; color: #1a1a1a; }
+
+        /* ===== 顶部导航栏 ===== */
+        .global-nav {
+            height: 48px; flex-shrink: 0;
+            background: linear-gradient(90deg, #d94145 0%, #c43a5e 25%, #a93478 50%, #8a2e8a 75%, #6b2fa0 100%);
+            display: flex; align-items: center;
+            padding: 0 20px; gap: 0;
+            box-shadow: 0 1px 4px rgba(0,0,0,.2);
+            z-index: 200; position: relative;
+        }
+        .global-nav-logo {
+            font-size: 15px; font-weight: 700; color: #fff;
+            margin-right: 28px; white-space: nowrap; letter-spacing: .5px;
+            display: flex; align-items: center; gap: 8px;
+            text-decoration: none;
+        }
+        .global-nav-logo img { height: 32px; }
+        .global-nav-logo svg { height: 22px; width: auto; }
+        .nav-items { display: flex; align-items: center; flex: 1; gap: 0; }
+        .nav-item {
+            padding: 0 16px; height: 48px;
+            display: flex; align-items: center; gap: 5px;
+            font-size: 14px; color: rgba(255,255,255,.75);
+            cursor: pointer; position: relative;
+            transition: color .15s; white-space: nowrap;
+            text-decoration: none; user-select: none;
+        }
+        .nav-item:hover { color: #fff; }
+        .nav-item.active { color: #fff; font-weight: 600; }
+        .nav-item.active::after {
+            content: ''; position: absolute; bottom: 0; left: 12px; right: 12px;
+            height: 3px; background: #fff; border-radius: 2px 2px 0 0;
+        }
+        .nav-item-icon { display: flex; align-items: center; font-size: 15px; }
+        .nav-item-arrow { font-size: 10px; opacity: .7; margin-left: 2px; }
+        .nav-item .nav-dropdown { display: none; }
+        .nav-item:hover .nav-dropdown { display: block; }
+        .nav-dropdown {
+            position: absolute; top: 48px; left: 0;
+            background: #fff; border-radius: 6px;
+            box-shadow: 0 4px 16px rgba(0,0,0,.15);
+            min-width: 160px; padding: 6px 0; z-index: 300;
+        }
+        .nav-dropdown a {
+            display: block; padding: 8px 18px; font-size: 13px;
+            color: #333; text-decoration: none; transition: background .1s;
+            white-space: nowrap;
+        }
+        .nav-dropdown a:hover { background: #f5f0ff; color: #722ed1; }
+        .nav-dropdown a.active { color: #722ed1; font-weight: 600; background: #f9f0ff; }
+        .nav-right {
+            display: flex; align-items: center; gap: 16px;
+            margin-left: auto; color: rgba(255,255,255,.8); font-size: 13px;
+        }
+        .nav-right-icon {
+            width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; border-radius: 50%; transition: background .15s;
+        }
+        .nav-right-icon:hover { background: rgba(255,255,255,.15); }
+        .nav-user {
+            display: flex; align-items: center; gap: 6px;
+            cursor: pointer; padding: 4px 8px; border-radius: 4px;
+        }
+        .nav-user:hover { background: rgba(255,255,255,.1); }
+        .nav-avatar {
+            width: 26px; height: 26px; border-radius: 50%;
+            background: rgba(255,255,255,.25); display: flex;
+            align-items: center; justify-content: center;
+            font-size: 11px; color: #fff; font-weight: 600;
+        }
+
+        /* ===== 整体布局 ===== */
+        .page-wrapper { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        .layout { display: flex; flex: 1; overflow: hidden; }
+
+        /* ===== 左侧用户面板 ===== */
+        .left-panel {
+            width: 272px; min-width: 200px; max-width: 500px; flex-shrink: 0;
+            display: flex; flex-direction: column;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        /* ===== 可拖拽分割线 ===== */
+        .resize-handle {
+            width: 4px; flex-shrink: 0; cursor: col-resize;
+            background: #e8e8e8; position: relative; z-index: 10;
+            transition: background .15s;
+        }
+        .resize-handle::after {
+            content: ''; position: absolute; top: 0; bottom: 0; left: -3px; right: -3px;
+        }
+        .resize-handle:hover, .resize-handle.dragging { background: #b37feb; }
+        body.resizing { cursor: col-resize; user-select: none; }
+        body.resizing .left-panel, body.resizing .right-main { pointer-events: none; }
+        .left-header {
+            padding: 14px 16px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .left-title {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 14px; font-weight: 600; color: #262626;
+            margin-bottom: 12px;
+        }
+        .left-title-icon {
+            width: 20px; height: 20px; border-radius: 4px;
+            background: #531dab; color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700;
+        }
+        .project-tabs {
+            display: flex; align-items: center; gap: 0; margin-bottom: 0;
+        }
+        .project-tab {
+            padding: 6px 12px; font-size: 12px; color: #8c8c8c;
+            cursor: pointer; border-bottom: 2px solid transparent;
+            transition: all .15s; white-space: nowrap;
+        }
+        .project-tab:hover { color: #531dab; }
+        .project-tab.active { color: #531dab; font-weight: 600; border-bottom-color: #531dab; }
+        .project-more { font-size: 11px; color: #bfbfbf; cursor: pointer; padding: 6px 4px; }
+
+        .user-id-section { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; }
+        .uid-tabs { display: flex; gap: 0; margin-bottom: 8px; }
+        .uid-tab {
+            padding: 4px 12px; font-size: 12px; color: #8c8c8c;
+            cursor: pointer; border: 1px solid #d9d9d9; background: #fff;
+            transition: all .15s;
+        }
+        .uid-tab:first-child { border-radius: 4px 0 0 4px; }
+        .uid-tab:last-child { border-radius: 0 4px 4px 0; border-left: none; }
+        .uid-tab.active { background: #531dab; color: #fff; border-color: #531dab; }
+        .uid-tab.active + .uid-tab { border-left: 1px solid #d9d9d9; }
+        .uid-input-row { display: flex; gap: 6px; }
+        .uid-input {
+            flex: 1; padding: 5px 10px; border: 1px solid #d9d9d9; border-radius: 4px;
+            font-size: 12px; outline: none;
+        }
+        .uid-input:focus { border-color: #531dab; }
+        .btn-green { padding: 5px 14px; border-radius: 4px; font-size: 12px; cursor: pointer; border: none; background: #52c41a; color: #fff; font-weight: 500; }
+        .btn-green:hover { background: #73d13d; }
+
+        .user-info-header {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 16px; border-bottom: 1px solid #f0f0f0;
+        }
+        .info-tab { font-size: 12px; color: #262626; font-weight: 500; padding: 3px 0; border-bottom: 2px solid #531dab; cursor: pointer; }
+        .info-btn {
+            padding: 2px 8px; border: 1px solid #d9d9d9; border-radius: 4px;
+            font-size: 11px; color: #595959; cursor: pointer; background: #fff;
+        }
+        .info-btn:hover { border-color: #531dab; color: #531dab; }
+
+        .user-info-body {
+            flex: 1; overflow-y: auto; padding: 0;
+        }
+        .info-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 7px 16px; border-bottom: 1px solid #f8f8f8;
+            font-size: 12px;
+        }
+        .info-row:hover { background: #fafafa; }
+        .info-key { color: #595959; flex-shrink: 0; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .info-val { color: #262626; text-align: right; font-weight: 500; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* ===== 右侧主内容区 ===== */
+        .right-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        .top-toolbar {
+            padding: 10px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            background: #fff;
+            flex-shrink: 0;
+        }
+        .toolbar-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .toolbar-row + .toolbar-row { margin-top: 10px; }
+        .tb-item { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #595959; }
+        .tb-item select, .tb-item input[type="text"] {
+            padding: 4px 8px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 12px; outline: none;
+        }
+        .tb-item select:focus, .tb-item input:focus { border-color: #531dab; }
+        .tb-sep { width: 1px; height: 22px; background: #e8e8e8; }
+        .btn-purple { padding: 5px 16px; border-radius: 4px; font-size: 12px; cursor: pointer; border: none; background: #531dab; color: #fff; font-weight: 500; }
+        .btn-purple:hover { background: #722ed1; }
+        .btn-outline { padding: 5px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; border: 1px solid #d9d9d9; background: #fff; color: #595959; }
+        .btn-outline:hover { border-color: #531dab; color: #531dab; }
+
+        .sort-btn {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 4px 10px; border: 1px solid #d9d9d9; border-radius: 4px;
+            font-size: 12px; color: #595959; cursor: pointer; background: #fff;
+        }
+        .sort-btn:hover { border-color: #531dab; color: #531dab; }
+        .sort-arrows { display: inline-flex; flex-direction: column; line-height: 1; font-size: 8px; gap: 0; }
+        .sort-arrows span { opacity: .3; }
+        .sort-arrows span.active { opacity: 1; color: #531dab; }
+
+        /* ★ 聚焦事件按钮 */
+        .focus-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 4px 12px; border: 1px solid #d9d9d9; border-radius: 4px;
+            font-size: 12px; color: #595959; cursor: pointer; background: #fff;
+            transition: all .15s; position: relative;
+        }
+        .focus-btn:hover { border-color: #531dab; color: #531dab; }
+        .focus-btn.has-focus { border-color: #531dab; color: #531dab; background: #f9f0ff; }
+        .focus-btn-icon { font-size: 13px; }
+
+        .btn-clear-x {
+            position: absolute; top: -7px; right: -7px;
+            width: 16px; height: 16px; border-radius: 50%;
+            background: #8c8c8c; color: #fff;
+            display: none; align-items: center; justify-content: center;
+            font-size: 10px; line-height: 1; cursor: pointer;
+            border: 1.5px solid #fff; z-index: 2;
+            transition: background .1s;
+        }
+        .btn-clear-x:hover { background: #ff4d4f; }
+        .focus-btn.has-focus:hover .btn-clear-x { display: flex; }
+        .locate-btn.has-locate:hover .btn-clear-x { display: flex; }
+
+        .tb-log-count { font-size: 12px; color: #8c8c8c; margin-left: auto; }
+
+        /* ★ 定位事件按钮 */
+        .locate-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 4px 12px; border: 1px solid #d9d9d9; border-radius: 4px;
+            font-size: 12px; color: #595959; cursor: pointer; background: #fff;
+            transition: all .15s; position: relative;
+        }
+        .locate-btn:hover { border-color: #1890ff; color: #1890ff; }
+        .locate-btn.has-locate { border-color: #1890ff; color: #1890ff; background: #e6f7ff; }
+
+        /* 定位导航器 < 1/13 > */
+        .locate-nav {
+            display: none; align-items: center; gap: 2px; font-size: 12px; color: #262626;
+            user-select: none;
+        }
+        .locate-nav.show { display: inline-flex; }
+        .locate-nav-arrow {
+            width: 22px; height: 22px; border-radius: 4px;
+            display: inline-flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 13px; color: #595959;
+            transition: all .1s; border: none; background: none; padding: 0;
+        }
+        .locate-nav-arrow:hover { background: #e6f7ff; color: #1890ff; }
+        .locate-nav-arrow.disabled { color: #d9d9d9; cursor: default; }
+        .locate-nav-arrow.disabled:hover { background: none; }
+        .locate-nav-text { padding: 0 4px; font-family: 'SF Mono','Monaco','Menlo',monospace; color: #1890ff; font-weight: 600; }
+
+        /* 定位高亮：仅当前跳转到的事件 */
+        .tl-entry.located-current { background: #bae7ff; }
+        .tl-entry.located-current .tl-dot { background: #1890ff; box-shadow: 0 0 0 4px rgba(24,144,255,0.35); }
+
+        /* 定位抽屉使用蓝色主题 */
+        .drawer.locate-drawer .drawer-back:hover { color: #1890ff; }
+        .drawer.locate-drawer .btn-confirm { background: #1890ff; }
+        .drawer.locate-drawer .btn-confirm:hover { background: #40a9ff; }
+        .drawer.locate-drawer .ev-row-num { background: #e6f7ff; color: #1890ff; }
+        .drawer.locate-drawer .ev-row-select.has-value { color: #262626; }
+        .drawer.locate-drawer .ev-action-filter.active { color: #1890ff; background: #e6f7ff; }
+        .drawer.locate-drawer .ev-action-filter:hover { color: #1890ff; background: #e6f7ff; }
+        .drawer.locate-drawer .ev-dropdown-item.selected { color: #1890ff; background: #e6f7ff; }
+        .drawer.locate-drawer .ev-dropdown-item:hover { background: #e6f7ff; }
+        .drawer.locate-drawer .ev-filter-bracket { border-left-color: #91d5ff; }
+        .drawer.locate-drawer .btn-cancel:hover { border-color: #1890ff; color: #1890ff; }
+
+        /* ===== 时间线序列区 ===== */
+        .timeline-area { flex: 1; overflow-y: auto; background: #fff; position: relative; }
+
+        /* ===== 加载更多 ===== */
+        .load-more-bar {
+            padding: 16px 20px; text-align: center;
+            border-top: 1px solid #f0f0f0;
+        }
+        .load-more-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 32px; border-radius: 6px; font-size: 13px;
+            cursor: pointer; border: 1px solid #d9d9d9; background: #fff;
+            color: #595959; transition: all .15s;
+        }
+        .load-more-btn:hover { border-color: #531dab; color: #531dab; background: #f9f0ff; }
+        .load-more-btn:active { transform: scale(0.98); }
+        .load-more-btn.loading { pointer-events: none; color: #bfbfbf; }
+        .load-more-hint { font-size: 11px; color: #bfbfbf; margin-top: 6px; }
+        .load-more-done { padding: 20px; text-align: center; font-size: 12px; color: #bfbfbf; }
+        .tz-label { padding: 6px 20px; font-size: 11px; color: #8c8c8c; background: #fafafa; border-bottom: 1px solid #f0f0f0; }
+        .date-header { padding: 10px 20px; font-size: 14px; font-weight: 600; color: #262626; background: #fafafa; border-bottom: 1px solid #f0f0f0; }
+        .tl-entry {
+            display: flex; align-items: stretch; border-bottom: 1px solid #f5f5f5;
+            transition: background .1s; cursor: pointer;
+        }
+        .tl-entry:hover { background: #fafafa; }
+        .tl-entry.focused { }
+        .tl-time {
+            width: 80px; flex-shrink: 0; padding: 12px 0 12px 20px;
+            font-size: 12px; color: #8c8c8c; font-family: 'SF Mono','Monaco','Menlo', monospace;
+        }
+        .tl-dot-col {
+            width: 36px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+            position: relative;
+        }
+        .tl-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #531dab; position: relative; z-index: 1;
+        }
+        .tl-dot.ev-app-launch { background: #531dab; }
+        .tl-dot.ev-click-detail { background: #531dab; }
+        .tl-dot.ev-game-end { background: #531dab; }
+        .tl-dot.ev-match-start { background: #531dab; }
+        .tl-dot-col::before {
+            content: ''; position: absolute; top: 0; bottom: 0; left: 50%;
+            width: 1px; background: #e8e8e8; transform: translateX(-50%);
+        }
+        .tl-entry:first-of-type .tl-dot-col::before { top: 50%; }
+        .tl-entry:last-of-type .tl-dot-col::before { bottom: 50%; }
+        .tl-content {
+            flex: 1; padding: 10px 16px 10px 0;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .tl-expand {
+            font-size: 11px; color: #595959; cursor: pointer;
+            transition: transform .2s; flex-shrink: 0;
+        }
+        .tl-expand.open { transform: rotate(90deg); }
+        .tl-event-name { font-size: 13px; color: #262626; }
+        .tl-event-tag {
+            font-size: 10px; padding: 1px 6px; border-radius: 3px;
+            background: #f9f0ff; color: #722ed1; white-space: nowrap;
+            display: none;
+        }
+        .tl-entry.focused .tl-event-tag { }
+        .tl-detail {
+            display: none; padding: 0 16px 12px 116px;
+            font-size: 12px; color: #8c8c8c; line-height: 1.8;
+            border-bottom: 1px solid #f5f5f5;
+        }
+        .tl-detail.open { display: block; }
+        .tl-detail-table { width: 100%; max-width: 500px; }
+        .tl-detail-table td { padding: 2px 8px 2px 0; vertical-align: top; }
+        .tl-detail-table td:first-child { color: #8c8c8c; white-space: nowrap; width: 120px; }
+        .tl-detail-table td:last-child { color: #262626; }
+
+
+
+        /* ===== 右侧抽屉 ===== */
+        .drawer-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.35); z-index: 500;
+        }
+        .drawer-overlay.show { display: block; }
+        .drawer {
+            position: fixed; top: 0; right: -520px; width: 520px; height: 100vh;
+            background: #fff; z-index: 600;
+            box-shadow: -4px 0 24px rgba(0,0,0,0.1);
+            display: flex; flex-direction: column;
+            transition: right .28s cubic-bezier(0.23,1,0.32,1);
+        }
+        .drawer.open { right: 0; }
+
+        .drawer-header {
+            padding: 20px 24px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            flex-shrink: 0;
+        }
+        .drawer-title {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 16px; font-weight: 600; color: #262626;
+        }
+        .drawer-back {
+            font-size: 18px; color: #595959; cursor: pointer; text-decoration: none;
+            display: inline-flex; align-items: center; margin-right: 2px;
+            transition: color .15s;
+        }
+        .drawer-back:hover { color: #531dab; }
+
+        .drawer-body { flex: 1; overflow-y: auto; padding: 24px 24px 16px; }
+
+        /* ===== 事件行列表 ===== */
+        .ev-row { margin-bottom: 20px; }
+
+        .ev-row-main {
+            display: flex; align-items: center; gap: 10px;
+        }
+        .ev-row-num {
+            width: 28px; height: 28px; border-radius: 6px;
+            background: #f0f0f0; color: #595959;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 600; flex-shrink: 0;
+        }
+        .ev-row-select {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 12px; border: 1px solid #e8e8e8; border-radius: 6px;
+            background: #fff; cursor: pointer; font-size: 13px; color: #262626;
+            transition: all .15s; position: relative; min-width: 140px;
+        }
+        .ev-row-select:hover { border-color: #b37feb; }
+        .ev-row-select.has-value { color: #262626; font-weight: 500; }
+        .ev-row-select.placeholder { color: #bfbfbf; }
+        .ev-row-select-icon {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 18px; height: 18px; flex-shrink: 0;
+        }
+        .ev-row-select-arrow { font-size: 10px; color: #bfbfbf; margin-left: auto; }
+
+        .ev-row-actions {
+            display: flex; align-items: center; gap: 6px; margin-left: auto;
+        }
+        .ev-action-btn {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 4px 10px; border-radius: 4px;
+            font-size: 12px; cursor: pointer; transition: all .15s;
+            border: none; background: none;
+        }
+        .ev-action-filter { color: #8c8c8c; }
+        .ev-action-filter:hover { color: #531dab; background: #f9f0ff; }
+        .ev-action-filter.active { color: #531dab; background: #f9f0ff; }
+        .ev-action-filter-icon { font-size: 12px; }
+        .ev-action-delete { color: #8c8c8c; }
+        .ev-action-delete:hover { color: #ff4d4f; background: #fff1f0; }
+
+        /* 事件选择下拉面板 */
+        .ev-dropdown {
+            display: none; position: absolute; top: calc(100% + 4px); left: 0;
+            min-width: 200px; max-height: 220px; overflow-y: auto;
+            background: #fff; border: 1px solid #e8e8e8; border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1); z-index: 10;
+            padding: 4px 0;
+        }
+        .ev-dropdown.show { display: block; }
+        .ev-dropdown-item {
+            padding: 8px 14px; font-size: 13px; color: #262626;
+            cursor: pointer; display: flex; align-items: center; gap: 8px;
+            transition: background .1s;
+        }
+        .ev-dropdown-item:hover { background: #f9f0ff; }
+        .ev-dropdown-item.selected { color: #531dab; font-weight: 500; background: #f9f0ff; }
+        .ev-dropdown-item.disabled { color: #d9d9d9; cursor: not-allowed; }
+        .ev-dropdown-item.disabled:hover { background: transparent; }
+        .ev-dropdown-item-icon {
+            width: 18px; height: 18px; display: inline-flex;
+            align-items: center; justify-content: center;
+        }
+
+        /* 筛选条件展开区 */
+        .ev-filter-area {
+            display: none; margin-top: 10px; padding-left: 38px;
+        }
+        .ev-filter-area.show { display: block; }
+        .ev-filter-bracket {
+            border-left: 2px solid #e8e8e8; padding-left: 16px; padding-bottom: 4px;
+        }
+        .ev-filter-row {
+            display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+        }
+        .ev-filter-row select, .ev-filter-row input {
+            padding: 6px 10px; border: 1px solid #e8e8e8; border-radius: 6px;
+            font-size: 12px; outline: none; background: #fff; transition: border .15s;
+        }
+        .ev-filter-row select:focus, .ev-filter-row input:focus { border-color: #b37feb; }
+        .ev-filter-row select { min-width: 100px; }
+        .ev-filter-row input { flex: 1; min-width: 80px; }
+        .ev-filter-del {
+            color: #d9d9d9; cursor: pointer; font-size: 16px; flex-shrink: 0;
+            padding: 2px 4px; line-height: 1; border-radius: 4px; transition: all .1s;
+        }
+        .ev-filter-del:hover { color: #ff4d4f; background: #fff1f0; }
+        .ev-filter-add {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 5px 14px; border-radius: 6px; font-size: 12px;
+            cursor: pointer; border: none; background: #52c41a; color: #fff; font-weight: 500;
+            margin-top: 4px; transition: background .15s;
+        }
+        .ev-filter-add:hover { background: #73d13d; }
+
+        /* + 添加按钮 */
+        .ev-add-row {
+            display: flex; align-items: center; gap: 6px;
+            padding: 8px 0; font-size: 13px; color: #531dab;
+            cursor: pointer; transition: opacity .15s;
+        }
+        .ev-add-row:hover { opacity: .7; }
+        .ev-add-row.disabled { color: #d9d9d9; cursor: not-allowed; pointer-events: none; }
+
+        /* 校验错误态 */
+        .ev-row-select.has-error { border-color: #ff4d4f; background: #fff1f0; }
+        .ev-filter-row select.has-error, .ev-filter-row input.has-error {
+            border-color: #ff4d4f; background: #fff1f0;
+        }
+        .ev-row-error-tip {
+            font-size: 11px; color: #ff4d4f; padding: 2px 0 0 38px;
+        }
+        .ev-add-icon { font-size: 16px; }
+
+        .drawer-footer {
+            padding: 14px 24px;
+            border-top: 1px solid #f0f0f0;
+            display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+            background: #fff; flex-shrink: 0;
+        }
+        .btn-cancel {
+            padding: 7px 24px; border-radius: 4px; font-size: 13px;
+            cursor: pointer; border: 1px solid #d9d9d9; background: #fff; color: #595959;
+        }
+        .btn-cancel:hover { border-color: #531dab; color: #531dab; }
+        .btn-confirm {
+            padding: 7px 24px; border-radius: 4px; font-size: 13px;
+            cursor: pointer; border: none; background: #531dab; color: #fff; font-weight: 500;
+        }
+        .btn-confirm:hover { background: #722ed1; }
+
+        /* ===== Toast ===== */
+        .toast {
+            position: fixed; top: 16px; left: 50%; transform: translateX(-50%) translateY(-50px);
+            background: #262626; color: #fff; padding: 8px 20px; border-radius: 6px;
+            font-size: 13px; z-index: 900; opacity: 0;
+            transition: all .25s ease; pointer-events: none;
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        /* ===== 设计说明浮层 ===== */
+        .design-banner {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: linear-gradient(135deg, #f9f0ff 0%, #efdbff 100%);
+            border-top: 1px solid #d3adf7;
+            padding: 10px 24px; z-index: 400;
+            display: flex; align-items: center; gap: 16px;
+            font-size: 12px; color: #595959;
+        }
+        .design-banner strong { color: #531dab; }
+        .design-banner-close {
+            margin-left: auto; cursor: pointer; padding: 2px 8px;
+            border-radius: 4px; font-size: 12px; color: #8c8c8c;
+        }
+        .design-banner-close:hover { background: #fff; color: #531dab; }
+    </style>
+</head>
+<body>
+
+<div class="page-wrapper">
+<nav class="global-nav">
+    <a class="global-nav-logo" href="#">
+        <img src="avia-logo-white.png" alt="avia">
+    </a>
+    <div class="nav-items">
+        <div class="nav-item">
+            <span class="nav-item-icon">📋</span> 系统管理 <span class="nav-item-arrow">▾</span>
+        </div>
+        <div class="nav-item active">
+            <span class="nav-item-icon">📊</span> Avia Analytics <span class="nav-item-arrow">▾</span>
+            <div class="nav-dropdown">
+                <a href="用户行为序列_行为聚焦交互原型.html" class="active">用户行为序列</a>
+                <a href="#">事件分析</a>
+                <a href="#">漏斗分析</a>
+                <a href="#">留存分析</a>
+            </div>
+        </div>
+        <div class="nav-item">
+            <span class="nav-item-icon">⚙️</span> 精细化运营 <span class="nav-item-arrow">▾</span>
+        </div>
+        <div class="nav-item">
+            <span class="nav-item-icon">📦</span> 数据管理 <span class="nav-item-arrow">▾</span>
+            <div class="nav-dropdown">
+                <a href="元数据管理_事件管理原型.html">元数据管理</a>
+                <a href="#">数据导入</a>
+                <a href="#">数据字典</a>
+            </div>
+        </div>
+        <div class="nav-item">
+            <span class="nav-item-icon">🛡️</span> 风控 <span class="nav-item-arrow">▾</span>
+        </div>
+    </div>
+    <div class="nav-right">
+        <span class="nav-right-icon">🔔</span>
+        <span class="nav-right-icon">⏱️</span>
+        <div class="nav-user">
+            <span class="nav-avatar">A</span>
+            <span>Alan Lyu</span>
+        </div>
+    </div>
+</nav>
+<div class="layout">
+    <!-- ===== 左侧用户面板 ===== -->
+    <div class="left-panel">
+        <div class="left-header">
+            <div class="left-title">
+                <span class="left-title-icon">S</span>
+                用户行为序列
+            </div>
+            <div class="project-tabs">
+                <div class="project-tab">p7</div>
+                <div class="project-tab active">mtp</div>
+                <div class="project-tab">ugx</div>
+                <div class="project-tab">pc</div>
+                <div class="project-tab">pjm</div>
+                <div class="project-more">∨</div>
+            </div>
+        </div>
+
+        <div class="user-id-section">
+            <div class="uid-tabs">
+                <div class="uid-tab active">user_id</div>
+                <div class="uid-tab">device_id</div>
+            </div>
+            <div class="uid-input-row">
+                <input class="uid-input" type="text" value="117408072">
+                <button class="btn-green">查询</button>
+            </div>
+        </div>
+
+        <div class="user-info-header">
+            <span class="info-tab">用户信息表</span>
+            <button class="info-btn">选择字段 (10/89)</button>
+            <button class="info-btn">保存配置</button>
+        </div>
+
+        <div class="user-info-body" id="userInfoBody">
+            <!-- JS 渲染 -->
+        </div>
+    </div>
+
+    <!-- ===== 拖拽分割线 ===== -->
+    <div class="resize-handle" id="resizeHandle"></div>
+
+    <!-- ===== 右侧主区域 ===== -->
+    <div class="right-main">
+        <!-- 顶部工具栏 -->
+        <div class="top-toolbar">
+            <div class="toolbar-row">
+                <div class="tb-item">
+                    <span style="font-size:12px;">🌐</span>
+                    <select style="min-width:70px;"><option>UTC-7</option><option>UTC+8</option></select>
+                </div>
+                <div class="tb-item">
+                    <span>📅</span>
+                    <input type="text" value="2026-05-01 00:00" style="width:130px;">
+                    <span style="color:#bfbfbf;">~</span>
+                    <input type="text" value="2026-05-05 23:59" style="width:130px;">
+                </div>
+                <div class="tb-sep"></div>
+                <div class="tb-item">
+                    <span>📋</span>
+                    <span style="cursor:pointer;">选择事件 (4/167)</span>
+                </div>
+                <div class="tb-sep"></div>
+                <button class="btn-outline" style="font-size:11px;">保存配置</button>
+                <button class="btn-purple" onclick="showToast('查询已发起')">查询</button>
+            </div>
+
+            <div class="toolbar-row" style="margin-top:10px;">
+                <div class="sort-btn" onclick="toggleSort()">
+                    时间<span id="sortLabel">升序</span>
+                    <span class="sort-arrows">
+                        <span id="sortUp" class="active">▲</span>
+                        <span id="sortDown">▼</span>
+                    </span>
+                </div>
+
+                <div class="tb-sep"></div>
+
+                <!-- ★ 聚焦事件按钮 -->
+                <div class="focus-btn" id="focusBtn" onclick="openDrawer()">
+                    <span class="focus-btn-icon">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5v-2z"/></svg>
+                    </span>
+                    <span>聚焦事件</span>
+                    <span class="btn-clear-x" onclick="event.stopPropagation(); clearAllFocus()">×</span>
+                </div>
+
+                <div class="tb-sep"></div>
+
+                <!-- ★ 定位事件按钮 -->
+                <div class="locate-btn" id="locateBtn" onclick="openLocateDrawer()">
+                    <span class="focus-btn-icon">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a.5.5 0 0 1 .5.5v1.527A6.5 6.5 0 0 1 14.473 8.5H16a.5.5 0 0 1 0 1h-1.527A6.5 6.5 0 0 1 8.5 15.473V17a.5.5 0 0 1-1 0v-1.527A6.5 6.5 0 0 1 1.527 9.5H0a.5.5 0 0 1 0-1h1.527A6.5 6.5 0 0 1 7.5 2.027V.5A.5.5 0 0 1 8 0zM8 3a5.5 5.5 0 1 0 0 11A5.5 5.5 0 0 0 8 3zm0 3a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/></svg>
+                    </span>
+                    <span>定位事件</span>
+                    <span class="btn-clear-x" onclick="event.stopPropagation(); clearLocateFromBtn()">×</span>
+                </div>
+
+                <!-- 定位导航器 < 1/13 > -->
+                <div class="locate-nav" id="locateNav">
+                    <button class="locate-nav-arrow" id="locatePrev" onclick="locateNavStep(-1)">‹</button>
+                    <span class="locate-nav-text" id="locateNavText">0/0</span>
+                    <button class="locate-nav-arrow" id="locateNext" onclick="locateNavStep(1)">›</button>
+                </div>
+
+                <span class="tb-log-count" id="logCount">查询到1000条日志记录</span>
+            </div>
+        </div>
+
+
+        <!-- 时间线 -->
+        <div class="timeline-area" id="timelineArea">
+            <div class="tz-label">utc-7</div>
+            <div class="date-header">2026-05-02</div>
+            <div id="timelineList">
+                <!-- JS 渲染 -->
+            </div>
+        </div>
+    </div>
+</div>
+</div><!-- /page-wrapper -->
+
+<!-- ===== 抽屉遮罩 ===== -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+
+<!-- ===== 右侧抽屉 ===== -->
+<div class="drawer" id="drawer">
+    <div class="drawer-header">
+        <div class="drawer-title">
+            <a class="drawer-back" onclick="closeDrawer()">‹</a>
+            聚焦事件
+        </div>
+    </div>
+
+    <div class="drawer-body" id="drawerBody">
+        <!-- JS 动态渲染事件行列表 -->
+    </div>
+
+    <div class="drawer-footer">
+        <button class="btn-cancel" onclick="closeDrawer()">取消</button>
+        <button class="btn-confirm" onclick="confirmDrawer()">确定</button>
+    </div>
+</div>
+
+<!-- ===== 定位事件抽屉遮罩 ===== -->
+<div class="drawer-overlay" id="locateDrawerOverlay" onclick="closeLocateDrawer()"></div>
+
+<!-- ===== 定位事件抽屉 ===== -->
+<div class="drawer locate-drawer" id="locateDrawer">
+    <div class="drawer-header">
+        <div class="drawer-title">
+            <a class="drawer-back" onclick="closeLocateDrawer()">‹</a>
+            定位事件
+        </div>
+    </div>
+    <div class="drawer-body" id="locateDrawerBody"></div>
+    <div class="drawer-footer">
+        <button class="btn-cancel" onclick="closeLocateDrawer()">取消</button>
+        <button class="btn-confirm" onclick="confirmLocateDrawer()">确定</button>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- 设计说明 -->
+<div class="design-banner" id="designBanner">
+    <strong>交互重设计：</strong>
+    「聚焦事件」过滤序列 →「定位事件」在结果中快速跳转（‹ 1/13 ›），配置方式相同，均通过右侧抽屉
+    <span class="design-banner-close" onclick="document.getElementById('designBanner').style.display='none'">关闭提示 ×</span>
+</div>
+
+<script>
+var ALL_EVENTS = [
+    { id: 'app_launch', name: 'APP启动退出' },
+    { id: 'click_detail', name: '位置点击详情' },
+    { id: 'game_end', name: '游戏结束' },
+    { id: 'match_start', name: '比赛开始' },
+    { id: 'page_view', name: '页面浏览' },
+    { id: 'button_click', name: '按钮点击' },
+    { id: 'video_play', name: '视频播放' },
+    { id: 'share_event', name: '分享事件' }
+];
+
+var ATTRS = ['platform', 'country', 'device_model', 'os_version', 'app_version', 'channel', 'network_type'];
+var OPS = ['=', '!=', '包含', 'in', '不为空'];
+
+var USER_INFO = [
+    ['User ID', '117408072'],
+    ['ADSET ID OR SITE ID', 'unknown'],
+    ['包体id', '1000'],
+    ['包体名称', 'Solitaire Clash'],
+    ['APP_VERSION', '11.44'],
+    ['注册国家（推荐）', 'US'],
+    ['BONUS_BALANCE', '0.34'],
+    ['Campaign', 'unknown'],
+    ['CASH_BALANCE', '0.00'],
+    ['最新cash+bonus账户余额', '0.34'],
+    ['末次登录APP ID', '1000']
+];
+
+var EVENT_TEMPLATES = [
+    { id: 'app_launch', event: 'APP启动退出', propsFn: function(i) {
+        var types = ['cold','warm','exit']; return { launch_type: types[i%3], duration: types[i%3]==='exit'?'—':(1+Math.random()*3).toFixed(1)+'s', platform: i%4===0?'Android':'iOS', app_version: '11.44' };
+    }},
+    { id: 'click_detail', event: '位置点击详情', propsFn: function(i) {
+        var pos = ['main_tab','banner_1','game_list','play_btn','in_game','result_screen','sidebar','settings','shop','profile'];
+        var tgt = ['lobby','promo','solitaire','match','card_flip','play_again','back_lobby','undo','buy','avatar'];
+        return { position: pos[i%pos.length], target: tgt[i%tgt.length], platform: i%5===0?'Android':'iOS' };
+    }},
+    { id: 'game_end', event: '游戏结束', propsFn: function(i) {
+        return { result: i%3===0?'lose':'win', score: String(1200+Math.floor(Math.random()*1800)), duration: String(60+Math.floor(Math.random()*300))+'s' };
+    }},
+    { id: 'match_start', event: '比赛开始', propsFn: function(i) {
+        var modes = ['ranked','casual','training']; return { mode: modes[i%3], region: 'NA', queue_time: String(2+Math.floor(Math.random()*15))+'s' };
+    }}
+];
+
+function generateMockData(count) {
+    var data = [];
+    var h = 3, m = 50, s = 33;
+    for (var i = 0; i < count; i++) {
+        var tpl = EVENT_TEMPLATES[i % EVENT_TEMPLATES.length];
+        var timeStr = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+        data.push({ time: timeStr, event: tpl.event, id: tpl.id, props: tpl.propsFn(i) });
+        s += 2 + Math.floor(Math.random() * 8);
+        if (s >= 60) { s -= 60; m++; }
+        if (m >= 60) { m -= 60; h++; }
+    }
+    return data;
+}
+
+var MOCK_TIMELINE = generateMockData(1000);
+
+var PAGE_SIZE = 100;
+var _filteredData = [];
+var _displayedCount = 0;
+var drawerRows = [];
+var appliedEvents = [];
+var appliedFilters = {};
+var _openDropdownIdx = -1;
+
+var EVENT_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 5l4-3 4 3M2 11l4 3 4-3M10 5l4 3-4 3"/></svg>';
+
+function renderUserInfo() {
+    var body = document.getElementById('userInfoBody');
+    body.innerHTML = USER_INFO.map(function(row) {
+        return '<div class="info-row"><span class="info-key">' + row[0] + '</span><span class="info-val">' + row[1] + '</span></div>';
+    }).join('');
+}
+
+function getFilteredData(focusedIds) {
+    var data = MOCK_TIMELINE;
+    if (focusedIds && focusedIds.length > 0) {
+        data = data.filter(function(d) {
+            if (focusedIds.indexOf(d.id) < 0) return false;
+            var evFilters = appliedFilters[d.id];
+            if (evFilters && evFilters.length > 0) {
+                return evFilters.every(function(f) {
+                    if (!f.attr || !f.value) return true;
+                    var propVal = d.props[f.attr] || '';
+                    if (f.op === '=') return propVal === f.value;
+                    if (f.op === '!=') return propVal !== f.value;
+                    if (f.op === '包含') return propVal.indexOf(f.value) >= 0;
+                    if (f.op === '不为空') return propVal !== '';
+                    return true;
+                });
+            }
+            return true;
+        });
+    }
+    return data;
+}
+
+function renderTimelineEntry(d, globalIdx, isFocused) {
+    var focused = isFocused ? ' focused' : '';
+    var propsHtml = Object.keys(d.props).map(function(k) {
+        return '<tr><td>' + k + '</td><td>' + d.props[k] + '</td></tr>';
+    }).join('');
+    return '<div class="tl-entry' + focused + '" onclick="toggleDetail(' + globalIdx + ')">'
+        + '<div class="tl-time">' + d.time + '</div>'
+        + '<div class="tl-dot-col"><div class="tl-dot ev-' + d.id.replace(/_/g, '-') + '"></div></div>'
+        + '<div class="tl-content">'
+        + '<span class="tl-expand" id="expand-' + globalIdx + '">▶</span>'
+        + '<span class="tl-event-name">' + d.event + '</span>'
+        + '<span class="tl-event-tag">' + d.event + '</span>'
+        + '</div></div>'
+        + '<div class="tl-detail" id="detail-' + globalIdx + '"><table class="tl-detail-table">' + propsHtml + '</table></div>';
+}
+
+function renderTimeline(focusedIds) {
+    _filteredData = getFilteredData(focusedIds);
+    _displayedCount = 0;
+    var list = document.getElementById('timelineList');
+    list.innerHTML = '';
+    removeLoadMore();
+    loadMoreItems();
+    document.getElementById('logCount').textContent = '查询到' + _filteredData.length + '条日志记录';
+    document.getElementById('timelineArea').scrollTop = 0;
+    if (appliedLocateEvents.length > 0) {
+        computeLocateMatches();
+        _locateCurrentIdx = _locateMatchIndices.length > 0 ? 0 : -1;
+        updateLocateNav();
+    }
+}
+
+function loadMoreItems() {
+    var list = document.getElementById('timelineList');
+    var isFocused = appliedEvents.length > 0;
+    var end = Math.min(_displayedCount + PAGE_SIZE, _filteredData.length);
+    var fragment = '';
+    for (var i = _displayedCount; i < end; i++) {
+        fragment += renderTimelineEntry(_filteredData[i], i, isFocused);
+    }
+    list.insertAdjacentHTML('beforeend', fragment);
+    _displayedCount = end;
+    updateLoadMoreBar();
+}
+
+function updateLoadMoreBar() {
+    removeLoadMore();
+    var container = document.getElementById('timelineArea');
+    var total = _filteredData.length;
+
+    if (_displayedCount >= total) {
+        if (total > PAGE_SIZE) {
+            var done = document.createElement('div');
+            done.className = 'load-more-done';
+            done.id = 'loadMoreBar';
+            done.textContent = '已展示全部 ' + total + ' 条记录';
+            container.appendChild(done);
+        }
+        return;
+    }
+
+    var remaining = total - _displayedCount;
+    var nextBatch = Math.min(remaining, PAGE_SIZE);
+    var bar = document.createElement('div');
+    bar.className = 'load-more-bar';
+    bar.id = 'loadMoreBar';
+    bar.innerHTML = '<button class="load-more-btn" onclick="onLoadMore()">查看更多</button>'
+        + '<div class="load-more-hint">已展示 ' + _displayedCount + ' / ' + total + ' 条，点击加载下 ' + nextBatch + ' 条</div>';
+    container.appendChild(bar);
+}
+
+function onLoadMore() {
+    var btn = document.querySelector('.load-more-btn');
+    if (btn) {
+        btn.classList.add('loading');
+        btn.textContent = '加载中...';
+    }
+    setTimeout(function() {
+        loadMoreItems();
+    }, 300);
+}
+
+function removeLoadMore() {
+    var old = document.getElementById('loadMoreBar');
+    if (old) old.remove();
+}
+
+function toggleDetail(i) {
+    var detail = document.getElementById('detail-' + i);
+    var arrow = document.getElementById('expand-' + i);
+    if (detail && arrow) {
+        detail.classList.toggle('open');
+        arrow.classList.toggle('open');
+    }
+}
+
+var _sortAsc = true;
+function toggleSort() {
+    _sortAsc = !_sortAsc;
+    document.getElementById('sortLabel').textContent = _sortAsc ? '升序' : '降序';
+    document.getElementById('sortUp').className = _sortAsc ? 'active' : '';
+    document.getElementById('sortDown').className = _sortAsc ? '' : 'active';
+    MOCK_TIMELINE.reverse();
+    renderTimeline(appliedEvents.length > 0 ? appliedEvents : null);
+}
+
+/* ===== 抽屉 ===== */
+function openDrawer() {
+    drawerRows = [];
+    appliedEvents.forEach(function(evId) {
+        var conds = (appliedFilters[evId] || []).map(function(f) {
+            return { attr: f.attr, op: f.op, value: f.value };
+        });
+        drawerRows.push({ eventId: evId, filters: conds, filterOpen: conds.length > 0 });
+    });
+    if (drawerRows.length === 0) {
+        drawerRows.push({ eventId: '', filters: [], filterOpen: false });
+    }
+    document.getElementById('drawerOverlay').classList.add('show');
+    document.getElementById('drawer').classList.add('open');
+    renderDrawerBody();
+}
+
+function closeDrawer() {
+    document.getElementById('drawerOverlay').classList.remove('show');
+    document.getElementById('drawer').classList.remove('open');
+    _openDropdownIdx = -1;
+}
+
+function validateDrawerRows(rows, prefix) {
+    clearValidationErrors(prefix);
+    var hasError = false;
+    rows.forEach(function(row, idx) {
+        var selectEl = document.getElementById(prefix + 'Select' + idx);
+        if (!row.eventId) {
+            if (selectEl) selectEl.classList.add('has-error');
+            var tip = document.getElementById(prefix + 'Row' + idx);
+            if (tip) {
+                var errDiv = document.createElement('div');
+                errDiv.className = 'ev-row-error-tip validation-error';
+                errDiv.textContent = '请选择事件';
+                tip.querySelector('.ev-row-main').insertAdjacentElement('afterend', errDiv);
+            }
+            hasError = true;
+        }
+        if (row.eventId && row.filters.length > 0) {
+            row.filters.forEach(function(f, fi) {
+                var filterRows = document.querySelectorAll('#' + prefix + 'Row' + idx + ' .ev-filter-row');
+                var filterRow = filterRows && filterRows[fi];
+                if (!filterRow) return;
+                var selects = filterRow.querySelectorAll('select');
+                var input = filterRow.querySelector('input');
+                if (!f.attr) {
+                    if (selects[0]) selects[0].classList.add('has-error');
+                    hasError = true;
+                }
+                if (f.op !== '不为空' && !f.value) {
+                    if (input) input.classList.add('has-error');
+                    hasError = true;
+                }
+            });
+        }
+    });
+    return !hasError;
+}
+
+function clearValidationErrors(prefix) {
+    var container = prefix === 'ev' ? document.getElementById('drawerBody') : document.getElementById('locateDrawerBody');
+    if (!container) return;
+    container.querySelectorAll('.has-error').forEach(function(el) { el.classList.remove('has-error'); });
+    container.querySelectorAll('.validation-error').forEach(function(el) { el.remove(); });
+}
+
+function confirmDrawer() {
+    if (!validateDrawerRows(drawerRows, 'ev')) {
+        showToast('请完善配置后再确定');
+        return;
+    }
+    appliedEvents = [];
+    appliedFilters = {};
+    drawerRows.forEach(function(row) {
+        if (row.eventId) {
+            appliedEvents.push(row.eventId);
+            appliedFilters[row.eventId] = row.filters.slice();
+        }
+    });
+    updateFocusBtn();
+    updateFocusBar();
+    renderTimeline(appliedEvents.length > 0 ? appliedEvents : null);
+    closeDrawer();
+    if (appliedEvents.length > 0) {
+        var totalConds = 0;
+        Object.values(appliedFilters).forEach(function(arr) {
+            totalConds += arr.filter(function(f) { return f.attr && f.value; }).length;
+        });
+        showToast('聚焦查询已应用 — ' + appliedEvents.length + ' 个事件' + (totalConds > 0 ? '，' + totalConds + ' 个筛选条件' : ''));
+    } else {
+        showToast('已清除聚焦');
+    }
+}
+
+function updateFocusBtn() {
+    var btn = document.getElementById('focusBtn');
+    if (appliedEvents.length > 0) {
+        btn.classList.add('has-focus');
+    } else {
+        btn.classList.remove('has-focus');
+    }
+}
+
+function updateFocusBar() {}
+
+function clearAllFocus() {
+    appliedEvents = [];
+    appliedFilters = {};
+    updateFocusBtn();
+    updateFocusBar();
+    renderTimeline(null);
+    showToast('已清除聚焦');
+}
+
+/* ===== 抽屉内容渲染 ===== */
+function renderDrawerBody() {
+    var body = document.getElementById('drawerBody');
+    var html = '';
+
+    drawerRows.forEach(function(row, idx) {
+        var ev = row.eventId ? ALL_EVENTS.find(function(e) { return e.id === row.eventId; }) : null;
+        var evLabel = ev ? ev.name : '请选择';
+        var selectClass = ev ? 'ev-row-select has-value' : 'ev-row-select placeholder';
+        var filterActive = row.filterOpen ? ' active' : '';
+        var filterCount = row.filters.length;
+        var filterBtnText = filterCount > 0 ? '筛选(' + filterCount + ')' : '筛选';
+
+        html += '<div class="ev-row" id="evRow' + idx + '">';
+        html += '<div class="ev-row-main">';
+        html += '<div class="ev-row-num">' + (idx + 1) + '</div>';
+        html += '<div class="' + selectClass + '" onclick="toggleEventDropdown(' + idx + ', event)" id="evSelect' + idx + '">';
+        html += '<span class="ev-row-select-icon">' + EVENT_ICON_SVG + '</span>';
+        html += '<span>' + evLabel + '</span>';
+        html += '<span class="ev-row-select-arrow">▾</span>';
+        html += '<div class="ev-dropdown" id="evDropdown' + idx + '">';
+
+        ALL_EVENTS.forEach(function(e) {
+            var usedByOther = drawerRows.some(function(r, ri) { return ri !== idx && r.eventId === e.id; });
+            var isCurrent = row.eventId === e.id;
+            var cls = 'ev-dropdown-item';
+            if (isCurrent) cls += ' selected';
+            if (usedByOther) cls += ' disabled';
+            var onclick = usedByOther ? '' : ' onclick="selectEventForRow(' + idx + ', \'' + e.id + '\', event)"';
+            html += '<div class="' + cls + '"' + onclick + '>';
+            html += '<span class="ev-dropdown-item-icon">' + EVENT_ICON_SVG + '</span>';
+            html += e.name;
+            html += '</div>';
+        });
+        html += '</div></div>';
+
+        html += '<div class="ev-row-actions">';
+        if (row.eventId) {
+            html += '<button class="ev-action-btn ev-action-filter' + filterActive + '" onclick="toggleRowFilter(' + idx + ')">';
+            html += '<span class="ev-action-filter-icon"><svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5v-2z"/></svg></span>';
+            html += filterBtnText + '</button>';
+        }
+        if (drawerRows.length > 1) {
+            html += '<button class="ev-action-btn ev-action-delete" onclick="removeRow(' + idx + ')">× 删除</button>';
+        }
+        html += '</div>';
+        html += '</div>';
+
+        if (row.eventId && row.filterOpen) {
+            html += '<div class="ev-filter-area show">';
+            html += '<div class="ev-filter-bracket">';
+            if (row.filters.length > 0) {
+                row.filters.forEach(function(f, fi) {
+                    var attrOpts = '<option value="">请选择</option>' + ATTRS.map(function(a) {
+                        return '<option value="' + a + '"' + (f.attr === a ? ' selected' : '') + '>' + a + '</option>';
+                    }).join('');
+                    var opOpts = OPS.map(function(o) {
+                        return '<option value="' + o + '"' + (f.op === o ? ' selected' : '') + '>' + o + '</option>';
+                    }).join('');
+                    html += '<div class="ev-filter-row">';
+                    html += '<select onchange="updateRowFilter(' + idx + ',' + fi + ',\'attr\',this.value)">' + attrOpts + '</select>';
+                    html += '<select onchange="updateRowFilter(' + idx + ',' + fi + ',\'op\',this.value)" style="min-width:70px;">' + opOpts + '</select>';
+                    html += '<input type="text" placeholder="请输入" value="' + (f.value || '') + '" onchange="updateRowFilter(' + idx + ',' + fi + ',\'value\',this.value)">';
+                    html += '<span class="ev-filter-del" onclick="removeRowFilter(' + idx + ',' + fi + ')">×</span>';
+                    html += '</div>';
+                });
+            }
+            html += '<button class="ev-filter-add" onclick="addRowFilter(' + idx + ')">添加条件</button>';
+            html += '</div></div>';
+        }
+
+        html += '</div>';
+    });
+
+    var addDisabled = drawerRows.length >= 5 ? ' disabled' : '';
+    html += '<div class="ev-add-row' + addDisabled + '" onclick="addEventRow()">';
+    html += '<span class="ev-add-icon">+</span> 添加' + (addDisabled ? '（最多5个）' : '');
+    html += '</div>';
+
+    body.innerHTML = html;
+}
+
+function toggleEventDropdown(idx, e) {
+    e.stopPropagation();
+    var dd = document.getElementById('evDropdown' + idx);
+    if (dd.classList.contains('show')) {
+        dd.classList.remove('show');
+        _openDropdownIdx = -1;
+    } else {
+        closeAllDropdowns();
+        dd.classList.add('show');
+        _openDropdownIdx = idx;
+    }
+}
+
+function closeAllDropdowns() {
+    document.querySelectorAll('.ev-dropdown.show').forEach(function(d) { d.classList.remove('show'); });
+    _openDropdownIdx = -1;
+}
+
+function selectEventForRow(idx, evId, e) {
+    e.stopPropagation();
+    drawerRows[idx].eventId = evId;
+    drawerRows[idx].filters = [];
+    drawerRows[idx].filterOpen = false;
+    closeAllDropdowns();
+    renderDrawerBody();
+}
+
+function toggleRowFilter(idx) {
+    drawerRows[idx].filterOpen = !drawerRows[idx].filterOpen;
+    renderDrawerBody();
+}
+
+function removeRow(idx) {
+    drawerRows.splice(idx, 1);
+    if (drawerRows.length === 0) {
+        drawerRows.push({ eventId: '', filters: [], filterOpen: false });
+    }
+    renderDrawerBody();
+}
+
+function addEventRow() {
+    drawerRows.push({ eventId: '', filters: [], filterOpen: false });
+    renderDrawerBody();
+    var body = document.getElementById('drawerBody');
+    body.scrollTop = body.scrollHeight;
+}
+
+function addRowFilter(idx) {
+    drawerRows[idx].filters.push({ attr: '', op: '=', value: '' });
+    renderDrawerBody();
+}
+
+function removeRowFilter(idx, fi) {
+    drawerRows[idx].filters.splice(fi, 1);
+    renderDrawerBody();
+}
+
+function updateRowFilter(idx, fi, field, val) {
+    if (drawerRows[idx] && drawerRows[idx].filters[fi]) {
+        drawerRows[idx].filters[fi][field] = val;
+    }
+}
+
+document.addEventListener('click', function(e) {
+    if (_openDropdownIdx >= 0) {
+        var dd = document.getElementById('evDropdown' + _openDropdownIdx);
+        if (dd && !dd.contains(e.target)) closeAllDropdowns();
+    }
+    if (_locateOpenDropdownIdx >= 0) {
+        var dd2 = document.getElementById('locEvDropdown' + _locateOpenDropdownIdx);
+        if (dd2 && !dd2.contains(e.target)) closeAllLocateDropdowns();
+    }
+});
+
+/* ===== 定位事件 ===== */
+var locateDrawerRows = [];
+var appliedLocateEvents = [];
+var appliedLocateFilters = {};
+var _locateMatchIndices = [];
+var _locateCurrentIdx = -1;
+var _locateOpenDropdownIdx = -1;
+
+function openLocateDrawer() {
+    locateDrawerRows = [];
+    appliedLocateEvents.forEach(function(evId) {
+        var conds = (appliedLocateFilters[evId] || []).map(function(f) {
+            return { attr: f.attr, op: f.op, value: f.value };
+        });
+        locateDrawerRows.push({ eventId: evId, filters: conds, filterOpen: conds.length > 0 });
+    });
+    if (locateDrawerRows.length === 0) {
+        locateDrawerRows.push({ eventId: '', filters: [], filterOpen: false });
+    }
+    document.getElementById('locateDrawerOverlay').classList.add('show');
+    document.getElementById('locateDrawer').classList.add('open');
+    renderLocateDrawerBody();
+}
+
+function closeLocateDrawer() {
+    document.getElementById('locateDrawerOverlay').classList.remove('show');
+    document.getElementById('locateDrawer').classList.remove('open');
+    _locateOpenDropdownIdx = -1;
+}
+
+function confirmLocateDrawer() {
+    if (!validateDrawerRows(locateDrawerRows, 'locEv')) {
+        showToast('请完善配置后再确定');
+        return;
+    }
+    appliedLocateEvents = [];
+    appliedLocateFilters = {};
+    locateDrawerRows.forEach(function(row) {
+        if (row.eventId) {
+            appliedLocateEvents.push(row.eventId);
+            appliedLocateFilters[row.eventId] = row.filters.slice();
+        }
+    });
+    updateLocateBtn();
+    closeLocateDrawer();
+    computeLocateMatches();
+    if (appliedLocateEvents.length > 0 && _locateMatchIndices.length > 0) {
+        _locateCurrentIdx = 0;
+        updateLocateNav();
+        jumpToLocateEntry(_locateMatchIndices[0]);
+        showToast('已定位 ' + _locateMatchIndices.length + ' 条匹配事件');
+    } else if (appliedLocateEvents.length > 0) {
+        _locateCurrentIdx = -1;
+        updateLocateNav();
+        showToast('未找到匹配的事件');
+    } else {
+        clearLocate();
+    }
+}
+
+function updateLocateBtn() {
+    var btn = document.getElementById('locateBtn');
+    if (appliedLocateEvents.length > 0) {
+        btn.classList.add('has-locate');
+    } else {
+        btn.classList.remove('has-locate');
+    }
+}
+
+function clearLocateFromBtn() {
+    clearLocate();
+    showToast('已清除定位');
+}
+
+function clearLocate() {
+    appliedLocateEvents = [];
+    appliedLocateFilters = {};
+    _locateMatchIndices = [];
+    _locateCurrentIdx = -1;
+    updateLocateBtn();
+    document.getElementById('locateNav').classList.remove('show');
+    clearLocateHighlights();
+}
+
+function computeLocateMatches() {
+    _locateMatchIndices = [];
+    if (appliedLocateEvents.length === 0) return;
+    _filteredData.forEach(function(d, i) {
+        if (appliedLocateEvents.indexOf(d.id) < 0) return;
+        var evFilters = appliedLocateFilters[d.id];
+        if (evFilters && evFilters.length > 0) {
+            var pass = evFilters.every(function(f) {
+                if (!f.attr || !f.value) return true;
+                var propVal = d.props[f.attr] || '';
+                if (f.op === '=') return propVal === f.value;
+                if (f.op === '!=') return propVal !== f.value;
+                if (f.op === '包含') return propVal.indexOf(f.value) >= 0;
+                if (f.op === '不为空') return propVal !== '';
+                return true;
+            });
+            if (!pass) return;
+        }
+        _locateMatchIndices.push(i);
+    });
+}
+
+function updateLocateNav() {
+    var nav = document.getElementById('locateNav');
+    if (_locateMatchIndices.length === 0 && appliedLocateEvents.length === 0) {
+        nav.classList.remove('show');
+        return;
+    }
+    nav.classList.add('show');
+    var total = _locateMatchIndices.length;
+    var cur = total > 0 ? (_locateCurrentIdx + 1) : 0;
+    document.getElementById('locateNavText').textContent = cur + '/' + total;
+    document.getElementById('locatePrev').className = 'locate-nav-arrow' + (_locateCurrentIdx <= 0 ? ' disabled' : '');
+    document.getElementById('locateNext').className = 'locate-nav-arrow' + (_locateCurrentIdx >= total - 1 ? ' disabled' : '');
+}
+
+function locateNavStep(dir) {
+    if (_locateMatchIndices.length === 0) return;
+    var next = _locateCurrentIdx + dir;
+    if (next < 0 || next >= _locateMatchIndices.length) return;
+    _locateCurrentIdx = next;
+    updateLocateNav();
+    jumpToLocateEntry(_locateMatchIndices[next]);
+}
+
+function jumpToLocateEntry(dataIdx) {
+    ensureDataLoaded(dataIdx, function() {
+        clearLocateHighlights();
+
+        var entries = document.getElementById('timelineList').querySelectorAll('.tl-entry');
+        var target = entries[dataIdx];
+        if (!target) return;
+
+        target.classList.add('located-current');
+
+        var area = document.getElementById('timelineArea');
+        var areaRect = area.getBoundingClientRect();
+        var entryRect = target.getBoundingClientRect();
+        var offset = entryRect.top - areaRect.top - (areaRect.height / 2) + (entryRect.height / 2);
+        area.scrollTop += offset;
+    });
+}
+
+function ensureDataLoaded(dataIdx, callback) {
+    if (dataIdx < _displayedCount) {
+        callback();
+        return;
+    }
+    var needed = dataIdx + 1;
+    while (_displayedCount < needed && _displayedCount < _filteredData.length) {
+        var list = document.getElementById('timelineList');
+        var isFocused = appliedEvents.length > 0;
+        var end = Math.min(_displayedCount + PAGE_SIZE, _filteredData.length);
+        var fragment = '';
+        for (var i = _displayedCount; i < end; i++) {
+            fragment += renderTimelineEntry(_filteredData[i], i, isFocused);
+        }
+        list.insertAdjacentHTML('beforeend', fragment);
+        _displayedCount = end;
+    }
+    updateLoadMoreBar();
+    requestAnimationFrame(callback);
+}
+
+function clearLocateHighlights() {
+    document.querySelectorAll('.tl-entry.located-current').forEach(function(el) {
+        el.classList.remove('located-current');
+    });
+}
+
+/* ===== 定位事件抽屉渲染（复用聚焦事件的行结构） ===== */
+function renderLocateDrawerBody() {
+    var body = document.getElementById('locateDrawerBody');
+    var html = '';
+
+    locateDrawerRows.forEach(function(row, idx) {
+        var ev = row.eventId ? ALL_EVENTS.find(function(e) { return e.id === row.eventId; }) : null;
+        var evLabel = ev ? ev.name : '请选择';
+        var selectClass = ev ? 'ev-row-select has-value' : 'ev-row-select placeholder';
+        var filterActive = row.filterOpen ? ' active' : '';
+        var filterCount = row.filters.length;
+        var filterBtnText = filterCount > 0 ? '筛选(' + filterCount + ')' : '筛选';
+
+        html += '<div class="ev-row" id="locEvRow' + idx + '">';
+        html += '<div class="ev-row-main">';
+        html += '<div class="ev-row-num">' + (idx + 1) + '</div>';
+        html += '<div class="' + selectClass + '" onclick="toggleLocateDropdown(' + idx + ', event)" id="locEvSelect' + idx + '">';
+        html += '<span class="ev-row-select-icon">' + EVENT_ICON_SVG + '</span>';
+        html += '<span>' + evLabel + '</span>';
+        html += '<span class="ev-row-select-arrow">▾</span>';
+        html += '<div class="ev-dropdown" id="locEvDropdown' + idx + '">';
+
+        ALL_EVENTS.forEach(function(e) {
+            var usedByOther = locateDrawerRows.some(function(r, ri) { return ri !== idx && r.eventId === e.id; });
+            var isCurrent = row.eventId === e.id;
+            var cls = 'ev-dropdown-item';
+            if (isCurrent) cls += ' selected';
+            if (usedByOther) cls += ' disabled';
+            var onclick = usedByOther ? '' : ' onclick="selectLocateEventForRow(' + idx + ', \'' + e.id + '\', event)"';
+            html += '<div class="' + cls + '"' + onclick + '>';
+            html += '<span class="ev-dropdown-item-icon">' + EVENT_ICON_SVG + '</span>';
+            html += e.name + '</div>';
+        });
+        html += '</div></div>';
+
+        html += '<div class="ev-row-actions">';
+        if (row.eventId) {
+            html += '<button class="ev-action-btn ev-action-filter' + filterActive + '" onclick="toggleLocateRowFilter(' + idx + ')">';
+            html += '<span class="ev-action-filter-icon"><svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5v-2z"/></svg></span>';
+            html += filterBtnText + '</button>';
+        }
+        if (locateDrawerRows.length > 1) {
+            html += '<button class="ev-action-btn ev-action-delete" onclick="removeLocateRow(' + idx + ')">× 删除</button>';
+        }
+        html += '</div></div>';
+
+        if (row.eventId && row.filterOpen) {
+            html += '<div class="ev-filter-area show"><div class="ev-filter-bracket">';
+            if (row.filters.length > 0) {
+                row.filters.forEach(function(f, fi) {
+                    var attrOpts = '<option value="">请选择</option>' + ATTRS.map(function(a) {
+                        return '<option value="' + a + '"' + (f.attr === a ? ' selected' : '') + '>' + a + '</option>';
+                    }).join('');
+                    var opOpts = OPS.map(function(o) {
+                        return '<option value="' + o + '"' + (f.op === o ? ' selected' : '') + '>' + o + '</option>';
+                    }).join('');
+                    html += '<div class="ev-filter-row">';
+                    html += '<select onchange="updateLocateRowFilter(' + idx + ',' + fi + ',\'attr\',this.value)">' + attrOpts + '</select>';
+                    html += '<select onchange="updateLocateRowFilter(' + idx + ',' + fi + ',\'op\',this.value)" style="min-width:70px;">' + opOpts + '</select>';
+                    html += '<input type="text" placeholder="请输入" value="' + (f.value || '') + '" onchange="updateLocateRowFilter(' + idx + ',' + fi + ',\'value\',this.value)">';
+                    html += '<span class="ev-filter-del" onclick="removeLocateRowFilter(' + idx + ',' + fi + ')">×</span></div>';
+                });
+            }
+            html += '<button class="ev-filter-add" onclick="addLocateRowFilter(' + idx + ')">添加条件</button>';
+            html += '</div></div>';
+        }
+        html += '</div>';
+    });
+
+    var locAddDisabled = locateDrawerRows.length >= 5 ? ' disabled' : '';
+    html += '<div class="ev-add-row' + locAddDisabled + '" onclick="addLocateEventRow()"><span class="ev-add-icon">+</span> 添加' + (locAddDisabled ? '（最多5个）' : '') + '</div>';
+    body.innerHTML = html;
+}
+
+function toggleLocateDropdown(idx, e) {
+    e.stopPropagation();
+    var dd = document.getElementById('locEvDropdown' + idx);
+    if (dd.classList.contains('show')) { dd.classList.remove('show'); _locateOpenDropdownIdx = -1; }
+    else { closeAllLocateDropdowns(); dd.classList.add('show'); _locateOpenDropdownIdx = idx; }
+}
+function closeAllLocateDropdowns() {
+    document.querySelectorAll('#locateDrawer .ev-dropdown.show').forEach(function(d) { d.classList.remove('show'); });
+    _locateOpenDropdownIdx = -1;
+}
+function selectLocateEventForRow(idx, evId, e) {
+    e.stopPropagation();
+    locateDrawerRows[idx].eventId = evId;
+    locateDrawerRows[idx].filters = [];
+    locateDrawerRows[idx].filterOpen = false;
+    closeAllLocateDropdowns();
+    renderLocateDrawerBody();
+}
+function toggleLocateRowFilter(idx) { locateDrawerRows[idx].filterOpen = !locateDrawerRows[idx].filterOpen; renderLocateDrawerBody(); }
+function removeLocateRow(idx) {
+    locateDrawerRows.splice(idx, 1);
+    if (locateDrawerRows.length === 0) locateDrawerRows.push({ eventId: '', filters: [], filterOpen: false });
+    renderLocateDrawerBody();
+}
+function addLocateEventRow() {
+    locateDrawerRows.push({ eventId: '', filters: [], filterOpen: false });
+    renderLocateDrawerBody();
+    document.getElementById('locateDrawerBody').scrollTop = document.getElementById('locateDrawerBody').scrollHeight;
+}
+function addLocateRowFilter(idx) { locateDrawerRows[idx].filters.push({ attr: '', op: '=', value: '' }); renderLocateDrawerBody(); }
+function removeLocateRowFilter(idx, fi) { locateDrawerRows[idx].filters.splice(fi, 1); renderLocateDrawerBody(); }
+function updateLocateRowFilter(idx, fi, field, val) {
+    if (locateDrawerRows[idx] && locateDrawerRows[idx].filters[fi]) locateDrawerRows[idx].filters[fi][field] = val;
+}
+
+function showToast(msg) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(function() { el.classList.remove('show'); }, 2200);
+}
+
+/* ===== 拖拽分割线 ===== */
+(function() {
+    var handle = document.getElementById('resizeHandle');
+    var panel = document.querySelector('.left-panel');
+    var startX, startW;
+
+    handle.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        startX = e.clientX;
+        startW = panel.offsetWidth;
+        handle.classList.add('dragging');
+        document.body.classList.add('resizing');
+        document.addEventListener('mousemove', onDrag);
+        document.addEventListener('mouseup', stopDrag);
+    });
+
+    function onDrag(e) {
+        var newW = startW + (e.clientX - startX);
+        var min = parseInt(getComputedStyle(panel).minWidth) || 200;
+        var max = parseInt(getComputedStyle(panel).maxWidth) || 500;
+        if (newW < min) newW = min;
+        if (newW > max) newW = max;
+        panel.style.width = newW + 'px';
+    }
+
+    function stopDrag() {
+        handle.classList.remove('dragging');
+        document.body.classList.remove('resizing');
+        document.removeEventListener('mousemove', onDrag);
+        document.removeEventListener('mouseup', stopDrag);
+    }
+})();
+
+renderUserInfo();
+renderTimeline(null);
+</script>
+</body>
+</html>
