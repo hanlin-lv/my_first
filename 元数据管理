@@ -1,0 +1,2188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>元数据管理 - 事件管理 & 指标管理原型</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif; background: #f5f6fa; color: #1a1a1a; }
+
+        /* ===== 顶部导航栏 ===== */
+        .global-nav {
+            height: 48px; flex-shrink: 0;
+            background: linear-gradient(90deg, #d94145 0%, #c43a5e 25%, #a93478 50%, #8a2e8a 75%, #6b2fa0 100%);
+            display: flex; align-items: center;
+            padding: 0 20px; gap: 0;
+            box-shadow: 0 1px 4px rgba(0,0,0,.2);
+            z-index: 200; position: relative;
+        }
+        .global-nav-logo {
+            font-size: 15px; font-weight: 700; color: #fff;
+            margin-right: 28px; white-space: nowrap; letter-spacing: .5px;
+            display: flex; align-items: center; gap: 8px;
+            text-decoration: none;
+        }
+        .global-nav-logo img { height: 32px; }
+        .global-nav-logo svg { height: 22px; width: auto; }
+        .nav-items { display: flex; align-items: center; flex: 1; gap: 0; }
+        .nav-item {
+            padding: 0 16px; height: 48px;
+            display: flex; align-items: center; gap: 5px;
+            font-size: 14px; color: rgba(255,255,255,.75);
+            cursor: pointer; position: relative;
+            transition: color .15s; white-space: nowrap;
+            text-decoration: none; user-select: none;
+        }
+        .nav-item:hover { color: #fff; }
+        .nav-item.active { color: #fff; font-weight: 600; }
+        .nav-item.active::after {
+            content: ''; position: absolute; bottom: 0; left: 12px; right: 12px;
+            height: 3px; background: #fff; border-radius: 2px 2px 0 0;
+        }
+        .nav-item-icon { display: flex; align-items: center; font-size: 15px; }
+        .nav-item-arrow { font-size: 10px; opacity: .7; margin-left: 2px; }
+        .nav-item .nav-dropdown { display: none; }
+        .nav-item:hover .nav-dropdown { display: block; }
+        .nav-dropdown {
+            position: absolute; top: 48px; left: 0;
+            background: #fff; border-radius: 6px;
+            box-shadow: 0 4px 16px rgba(0,0,0,.15);
+            min-width: 160px; padding: 6px 0; z-index: 300;
+        }
+        .nav-dropdown a {
+            display: block; padding: 8px 18px; font-size: 13px;
+            color: #333; text-decoration: none; transition: background .1s;
+            white-space: nowrap;
+        }
+        .nav-dropdown a:hover { background: #f5f0ff; color: #722ed1; }
+        .nav-dropdown a.active { color: #722ed1; font-weight: 600; background: #f9f0ff; }
+        .nav-right {
+            display: flex; align-items: center; gap: 16px;
+            margin-left: auto; color: rgba(255,255,255,.8); font-size: 13px;
+        }
+        .nav-right-icon {
+            width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; border-radius: 50%; transition: background .15s;
+        }
+        .nav-right-icon:hover { background: rgba(255,255,255,.15); }
+        .nav-user {
+            display: flex; align-items: center; gap: 6px;
+            cursor: pointer; padding: 4px 8px; border-radius: 4px;
+        }
+        .nav-user:hover { background: rgba(255,255,255,.1); }
+        .nav-avatar {
+            width: 26px; height: 26px; border-radius: 50%;
+            background: rgba(255,255,255,.25); display: flex;
+            align-items: center; justify-content: center;
+            font-size: 11px; color: #fff; font-weight: 600;
+        }
+
+        .page-wrapper { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        .layout { display: flex; flex: 1; overflow: hidden; }
+        
+        /* ===== 左侧导航 ===== */
+        .sidebar { width: 200px; background: #1e2732; color: #fff; padding: 20px 0; flex-shrink: 0; }
+        .sidebar-title { padding: 0 20px 20px; font-size: 15px; font-weight: 600; color: #fff; letter-spacing: 1px; }
+        .sidebar-item { padding: 11px 20px; cursor: pointer; font-size: 14px; color: #a3afbf; transition: all .15s; }
+        .sidebar-item:hover { background: rgba(255,255,255,0.06); color: #d0d8e0; }
+        .sidebar-item.active { background: rgba(24,144,255,0.15); color: #fff; font-weight: 500; }
+        .sidebar-sub { padding-left: 16px; margin-top: 2px; }
+        .sidebar-sub-item { padding: 7px 20px; font-size: 13px; cursor: pointer; color: #8b9aaa; transition: all .15s; border-radius: 0 4px 4px 0; }
+        .sidebar-sub-item:hover { color: #fff; background: rgba(255,255,255,0.04); }
+        .sidebar-sub-item.active { color: #1890ff; background: rgba(24,144,255,0.08); }
+        .sidebar-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 8px 20px; }
+        
+        /* ===== 主内容区 ===== */
+        .main { flex: 1; padding: 28px 32px; overflow: auto; }
+        .page-header { margin-bottom: 24px; }
+        .page-title { font-size: 20px; font-weight: 600; color: #1a1a1a; margin-bottom: 4px; }
+        .page-desc { font-size: 13px; color: #8c8c8c; }
+        
+        /* ===== Tab 切换 ===== */
+        .tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 2px solid #f0f0f0; }
+        .tab { padding: 12px 28px; font-size: 14px; cursor: pointer; color: #595959; position: relative; transition: all .15s; }
+        .tab:hover { color: #1890ff; }
+        .tab.active { color: #1890ff; font-weight: 600; }
+        .tab.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px; background: #1890ff; border-radius: 2px 2px 0 0; }
+        .tab-badge { display: inline-block; margin-left: 6px; padding: 1px 7px; font-size: 11px; background: #f0f0f0; border-radius: 10px; color: #8c8c8c; font-weight: 400; }
+        .tab.active .tab-badge { background: #e6f7ff; color: #1890ff; }
+        
+        /* ===== 筛选区 ===== */
+        .filter-area { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .filter-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+        .filter-item { display: flex; align-items: center; gap: 8px; }
+        .filter-item label { font-size: 13px; color: #595959; white-space: nowrap; }
+        .filter-item select, .filter-item input { padding: 7px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 13px; min-width: 160px; outline: none; transition: border .15s; }
+        .filter-item select:focus, .filter-item input:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.1); }
+        .btn { padding: 7px 18px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; transition: all .15s; font-weight: 500; }
+        .btn-primary { background: #1890ff; color: #fff; }
+        .btn-primary:hover { background: #40a9ff; }
+        .btn-success { background: #52c41a; color: #fff; }
+        .btn-success:hover { background: #73d13d; }
+        .btn-warning { background: #fa8c16; color: #fff; }
+        .btn-warning:hover { background: #ffa940; }
+        .btn-default { background: #fff; color: #595959; border: 1px solid #d9d9d9; }
+        .btn-default:hover { border-color: #1890ff; color: #1890ff; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        
+        /* ===== 操作按钮栏 ===== */
+        .action-bar { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; }
+        
+        /* ===== 表格 ===== */
+        .table-wrap { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .table th { background: #fafafa; padding: 12px 16px; text-align: left; font-weight: 500; color: #262626; border-bottom: 1px solid #f0f0f0; }
+        .table td { padding: 12px 16px; border-bottom: 1px solid #f5f5f5; color: #595959; }
+        .table tr:hover td { background: #fafafa; }
+        .table .link { color: #1890ff; cursor: pointer; text-decoration: none; }
+        .table .link:hover { text-decoration: underline; }
+        .table .ops { display: flex; gap: 12px; }
+        .table .icon-btn { cursor: pointer; color: #8c8c8c; font-size: 12px; transition: color .15s; }
+        .table .icon-btn:hover { color: #1890ff; }
+        .tag { display: inline-block; padding: 2px 8px; font-size: 12px; border-radius: 4px; font-weight: 500; }
+        .tag-behavior { background: #e6f7ff; color: #1890ff; }
+        .tag-attr { background: #f6ffed; color: #52c41a; }
+        .tag-original { background: #e6f7ff; color: #1890ff; }
+        .tag-virtual { background: #f9f0ff; color: #722ed1; }
+        .tag-visible { background: #f6ffed; color: #52c41a; }
+        .tag-hidden { background: #fff1f0; color: #ff4d4f; }
+        
+        /* ===== 状态标签 ===== */
+        .status { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+        .status-synced .status-dot { background: #52c41a; }
+        .status-synced { color: #52c41a; }
+        .status-pending .status-dot { background: #faad14; }
+        .status-pending { color: #faad14; }
+        .status-error .status-dot { background: #ff4d4f; }
+        .status-error { color: #ff4d4f; }
+        .status-validating .status-dot { background: #1890ff; animation: pulse 1.2s infinite; }
+        .status-validating { color: #1890ff; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+        
+        /* ===== 统计卡片 ===== */
+        .stats-row { display: flex; gap: 16px; margin-bottom: 16px; }
+        .stat-card { flex: 1; background: #fff; border-radius: 8px; padding: 16px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .stat-card-label { font-size: 12px; color: #8c8c8c; margin-bottom: 6px; }
+        .stat-card-value { font-size: 24px; font-weight: 700; color: #262626; }
+        .stat-card-value.blue { color: #1890ff; }
+        .stat-card-value.green { color: #52c41a; }
+        .stat-card-value.orange { color: #fa8c16; }
+        .stat-card-value.red { color: #ff4d4f; }
+        .stat-card-sub { font-size: 11px; color: #8c8c8c; margin-top: 4px; }
+        
+        /* ===== 空状态 ===== */
+        .empty-state { padding: 60px 20px; text-align: center; color: #8c8c8c; }
+        .empty-state-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+        
+        /* ===== 弹窗 ===== */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.45); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: #fff; border-radius: 12px; width: 640px; max-height: 80vh; overflow: auto; padding: 28px; box-shadow: 0 12px 48px rgba(0,0,0,0.15); }
+        .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+        .modal-desc { font-size: 13px; color: #8c8c8c; margin-bottom: 20px; }
+        .modal-section { margin-bottom: 20px; }
+        .modal-section-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: #262626; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding-top: 16px; border-top: 1px solid #f0f0f0; }
+        .field-list { border: 1px solid #f0f0f0; border-radius: 8px; overflow: hidden; }
+        .field-list-header { display: grid; grid-template-columns: 40px 1fr 1fr 100px; background: #fafafa; padding: 8px 12px; font-size: 12px; font-weight: 500; color: #8c8c8c; }
+        .field-list-row { display: grid; grid-template-columns: 40px 1fr 1fr 100px; padding: 8px 12px; font-size: 13px; border-top: 1px solid #f5f5f5; align-items: center; }
+        .field-list-row:hover { background: #fafafa; }
+        .checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #1890ff; }
+        .type-tag { font-size: 11px; padding: 1px 6px; border-radius: 3px; background: #f5f5f5; color: #8c8c8c; }
+
+        /* ===== 删除确认弹窗 ===== */
+        .confirm-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.45); z-index: 1100; justify-content: center; align-items: center; }
+        .confirm-overlay.show { display: flex; }
+        .confirm-box { background: #fff; border-radius: 12px; width: 480px; padding: 28px; box-shadow: 0 12px 48px rgba(0,0,0,0.15); }
+        .confirm-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .confirm-header-title { font-size: 16px; font-weight: 600; color: #262626; }
+        .confirm-close { cursor: pointer; font-size: 18px; color: #8c8c8c; background: none; border: none; line-height: 1; padding: 4px; }
+        .confirm-close:hover { color: #595959; }
+        .confirm-body { display: flex; gap: 12px; }
+        .confirm-icon { width: 22px; height: 22px; border-radius: 50%; background: #faad14; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+        .confirm-text { font-size: 14px; color: #262626; line-height: 1.7; }
+        .confirm-ref-section { margin-top: 16px; margin-left: 34px; }
+        .confirm-ref-title { font-size: 12px; color: #8c8c8c; margin-bottom: 8px; }
+        .confirm-ref-list { display: flex; flex-wrap: wrap; gap: 8px; }
+        .confirm-ref-tag { display: inline-flex; align-items: center; padding: 4px 12px; background: #f5f5f5; border-radius: 4px; font-size: 12px; color: #595959; border: 1px solid #f0f0f0; }
+        .confirm-ref-toggle { display: inline-flex; align-items: center; padding: 4px 12px; background: #fff; border-radius: 4px; font-size: 12px; color: #1890ff; cursor: pointer; border: 1px solid #e6f7ff; }
+        .confirm-ref-toggle:hover { background: #e6f7ff; }
+        .confirm-ref-collapsed { display: none; }
+        .confirm-ref-collapsed.show { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+        .confirm-footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; padding-top: 16px; border-top: 1px solid #f0f0f0; }
+
+        /* ===== 指标管理额外样式 ===== */
+        .tag-atomic { background: #e6f7ff; color: #1890ff; }
+        .tag-derived { background: #f9f0ff; color: #722ed1; }
+        .tag-composite { background: #fff7e6; color: #fa8c16; }
+        .tag-online { background: #f6ffed; color: #52c41a; }
+        .tag-draft { background: #f0f0f0; color: #8c8c8c; }
+        .tag-offline { background: #fff1f0; color: #ff4d4f; }
+
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 24px; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group.full { grid-column: 1 / -1; }
+        .form-label { font-size: 13px; color: #262626; font-weight: 500; }
+        .form-label .required { color: #ff4d4f; margin-right: 2px; }
+        .form-input, .form-select, .form-textarea { padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 13px; outline: none; transition: border .15s; font-family: inherit; }
+        .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.1); }
+        .form-textarea { resize: vertical; min-height: 72px; }
+        .form-hint { font-size: 11px; color: #8c8c8c; }
+
+        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 32px; padding: 16px; background: #fafafa; border-radius: 8px; margin-bottom: 20px; }
+        .detail-item { display: flex; flex-direction: column; gap: 4px; }
+        .detail-item-label { font-size: 12px; color: #8c8c8c; }
+        .detail-item-value { font-size: 13px; color: #262626; }
+        .detail-item.full { grid-column: 1 / -1; }
+        .formula-box { padding: 12px 16px; background: #f6f8fa; border: 1px solid #e8e8e8; border-radius: 6px; font-family: 'SF Mono', 'Monaco', 'Menlo', monospace; font-size: 13px; color: #262626; line-height: 1.6; }
+        .ref-event-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+        .ref-event-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; background: #e6f7ff; border-radius: 4px; font-size: 12px; color: #1890ff; }
+
+        /* ===== 指标分层相关 ===== */
+        .tag-level-company { background: #fff7e6; color: #d46b08; }
+        .tag-level-group { background: #f9f0ff; color: #722ed1; }
+        .tag-level-personal { background: #e6f7ff; color: #1890ff; }
+        .tag-shared { background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+
+        .group-header { cursor: pointer; user-select: none; }
+        .group-header td { background: #f6f8fa !important; padding: 14px 16px !important; border-bottom: 1px solid #e8e8e8 !important; }
+        .group-header:hover td { background: #eef1f5 !important; }
+        .group-arrow { display: inline-block; width: 18px; font-size: 11px; color: #8c8c8c; transition: transform .2s; margin-right: 4px; }
+        .group-arrow.collapsed { transform: rotate(-90deg); }
+        .group-title { font-size: 14px; font-weight: 600; color: #262626; margin-left: 6px; }
+        .group-count { font-size: 12px; color: #8c8c8c; margin-left: 8px; }
+        .group-desc { font-size: 11px; color: #bfbfbf; margin-left: 12px; }
+        .group-row.collapsed { display: none; }
+
+        .sub-group-header { cursor: pointer; user-select: none; }
+        .sub-group-header td { background: #f0f2f5 !important; padding: 10px 16px 10px 40px !important; border-bottom: 1px solid #e8e8e8 !important; }
+        .sub-group-header:hover td { background: #e8ebf0 !important; }
+        .sub-arrow { font-size: 10px; }
+        .sub-group-name { font-size: 13px; font-weight: 600; color: #595959; margin-left: 4px; }
+        .group-row-sub td:first-child { padding-left: 40px !important; }
+
+        /* 指标表格操作列固定右侧 */
+        #metricTable { min-width: 1080px; }
+        #metricTable th:last-child,
+        #metricTable td:last-child { position: sticky; right: 0; z-index: 2; }
+        #metricTable th:last-child { background: #fafafa; box-shadow: -3px 0 6px rgba(0,0,0,0.06); }
+        #metricTable td:last-child { background: #fff; box-shadow: -3px 0 6px rgba(0,0,0,0.04); }
+        #metricTable tr:hover td:last-child { background: #fafafa; }
+        #metricTable .group-header td:last-child { background: #f6f8fa !important; box-shadow: none; }
+        #metricTable .group-header:hover td:last-child { background: #eef1f5 !important; }
+        #metricTable .sub-group-header td:last-child { background: #f0f2f5 !important; box-shadow: none; }
+        #metricTable .sub-group-header:hover td:last-child { background: #e8ebf0 !important; }
+
+        /* ===== 创建指标整页 ===== */
+        .create-page-header { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #f0f0f0; }
+        .create-page-back { font-size: 13px; color: #8c8c8c; cursor: pointer; text-decoration: none; display: flex; align-items: center; gap: 4px; }
+        .create-page-back:hover { color: #1890ff; }
+        .create-page-title { font-size: 17px; font-weight: 600; color: #262626; }
+
+        .form-section { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); margin-bottom: 20px; padding: 0; overflow: hidden; }
+        .form-section-header { padding: 16px 28px; border-bottom: 1px solid #f0f0f0; font-size: 15px; font-weight: 600; color: #262626; position: relative; padding-left: 40px; }
+        .form-section-header::before { content: ''; position: absolute; left: 28px; top: 50%; transform: translateY(-50%); width: 3px; height: 18px; background: #722ed1; border-radius: 2px; }
+        .form-section-body { padding: 24px 28px; }
+
+        .hform-row { display: flex; align-items: flex-start; margin-bottom: 20px; }
+        .hform-row:last-child { margin-bottom: 0; }
+        .hform-label { width: 100px; flex-shrink: 0; font-size: 13px; color: #262626; font-weight: 500; padding-top: 8px; text-align: right; padding-right: 16px; }
+        .hform-label .required { color: #ff4d4f; margin-right: 2px; }
+        .hform-field { flex: 1; min-width: 0; max-width: 360px; }
+        .hform-field .form-input, .hform-field .form-select { width: 100%; }
+        .hform-field .form-textarea { width: 480px; }
+        .hform-counter { text-align: right; font-size: 11px; color: #bfbfbf; margin-top: 4px; }
+
+        .create-metric-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 20px 28px; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+
+        /* 只读详情值样式 */
+        .hform-value { font-size: 13px; color: #262626; padding: 8px 0; line-height: 1.6; }
+        .hform-value.mono { font-family: 'SF Mono','Monaco','Menlo',monospace; font-size: 13px; color: #595959; }
+        .hform-value .tag { vertical-align: middle; }
+
+        .perm-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 8px; border-radius: 3px; }
+        .perm-readonly { background: #f5f5f5; color: #8c8c8c; }
+        .perm-editable { background: #e6f7ff; color: #1890ff; }
+
+        .share-user-list { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; }
+        .share-user-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #fafafa; border-radius: 6px; font-size: 13px; }
+        .share-user-info { display: flex; align-items: center; gap: 10px; }
+        .share-avatar { width: 28px; height: 28px; border-radius: 50%; background: #1890ff; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+        .share-input-row { display: flex; gap: 10px; margin-bottom: 16px; }
+        .share-input-row input { flex: 1; }
+
+        /* ===== 上传事件页面 ===== */
+        .upload-form-card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); padding: 24px 28px; margin-bottom: 20px; }
+        .upload-form-grid { display: flex; flex-wrap: wrap; gap: 16px 32px; }
+        .upload-form-item { display: flex; align-items: center; gap: 8px; }
+        .upload-form-item label { font-size: 13px; color: #262626; font-weight: 500; white-space: nowrap; }
+        .upload-form-item label .req { color: #ff4d4f; margin-right: 2px; }
+        .upload-form-item select, .upload-form-item input { padding: 7px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 13px; min-width: 160px; outline: none; transition: border .15s; }
+        .upload-form-item select:focus, .upload-form-item input:focus { border-color: #531dab; box-shadow: 0 0 0 2px rgba(83,29,171,0.08); }
+        .upload-form-item .input-counter { position: relative; }
+        .upload-form-item .input-counter input { padding-right: 42px; }
+        .upload-form-item .counter-text { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 11px; color: #bfbfbf; pointer-events: none; }
+        .upload-form-note { font-size: 12px; color: #8c8c8c; margin-top: 8px; line-height: 1.6; padding: 8px 12px; background: #fafafa; border-radius: 6px; }
+        .upload-desc-row { display: flex; gap: 32px; margin-top: 16px; }
+        .upload-desc-item { flex: 1; }
+        .upload-desc-item label { display: block; font-size: 13px; color: #262626; font-weight: 500; margin-bottom: 6px; }
+        .upload-desc-item textarea { width: 100%; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 13px; resize: vertical; min-height: 60px; outline: none; font-family: inherit; transition: border .15s; }
+        .upload-desc-item textarea:focus { border-color: #531dab; box-shadow: 0 0 0 2px rgba(83,29,171,0.08); }
+        .upload-desc-counter { text-align: right; font-size: 11px; color: #bfbfbf; margin-top: 3px; }
+        .upload-tab-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0; }
+        .upload-tab-label { font-size: 14px; font-weight: 500; color: #262626; }
+        .upload-tab-hint { font-size: 12px; color: #8c8c8c; margin-left: 8px; }
+        .upload-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 20px 28px; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .btn-green { background: #52c41a; color: #fff; border: none; }
+        .btn-green:hover { background: #73d13d; }
+
+        /* ===== 加工数据事件 主题 ===== */
+        .purple-table th { background: #fafafa; color: #595959; font-weight: 500; white-space: nowrap; border-bottom: 1px solid #e8e8e8; }
+        .purple-table th .th-filter { display: inline-flex; align-items: center; gap: 2px; cursor: pointer; }
+        .purple-table th .th-filter::after { content: '▼'; font-size: 9px; opacity: .5; }
+        .btn-purple { background: #531dab; color: #fff; border: none; }
+        .btn-purple:hover { background: #722ed1; }
+        .btn-purple-outline { background: #fff; color: #531dab; border: 1px solid #b37feb; }
+        .btn-purple-outline:hover { background: #f9f0ff; }
+        .btn-purple-text { background: none; border: none; color: #595959; cursor: pointer; font-size: 13px; font-weight: 500; padding: 7px 12px; }
+        .btn-purple-text:hover { color: #531dab; }
+        .ops-icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 4px; cursor: pointer; color: #531dab; font-size: 14px; transition: background .15s; }
+        .ops-icon:hover { background: #f9f0ff; }
+
+        /* 加工数据事件操作列固定右侧 */
+        .purple-table th:last-child,
+        .purple-table td:last-child { position: sticky; right: 0; z-index: 2; }
+        .purple-table th:last-child { background: #fafafa; box-shadow: -3px 0 6px rgba(0,0,0,0.06); }
+        .purple-table td:last-child { background: #fff; box-shadow: -3px 0 6px rgba(0,0,0,0.04); }
+        .purple-table tr:hover td:last-child { background: #fafafa; }
+
+        /* 分页 */
+        .pagination-bar { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 14px 16px; font-size: 12px; color: #595959; }
+        .page-numbers { display: flex; gap: 4px; align-items: center; }
+        .page-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 6px; border: 1px solid #d9d9d9; border-radius: 4px; cursor: pointer; font-size: 12px; color: #595959; background: #fff; transition: all .15s; }
+        .page-btn:hover { color: #531dab; border-color: #531dab; }
+        .page-btn.active { background: #531dab; color: #fff; border-color: #531dab; }
+        .page-btn.disabled { color: #d9d9d9; border-color: #d9d9d9; cursor: default; }
+        .page-select { padding: 4px 8px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 12px; outline: none; }
+        .page-goto { display: inline-flex; align-items: center; gap: 4px; }
+        .page-goto input { width: 40px; padding: 4px 6px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 12px; text-align: center; outline: none; }
+    </style>
+</head>
+<body>
+    <div class="page-wrapper">
+    <nav class="global-nav">
+        <a class="global-nav-logo" href="#">
+            <img src="avia-logo-white.png" alt="avia">
+        </a>
+        <div class="nav-items">
+            <div class="nav-item">
+                <span class="nav-item-icon">📋</span> 系统管理 <span class="nav-item-arrow">▾</span>
+            </div>
+            <div class="nav-item">
+                <span class="nav-item-icon">📊</span> Avia Analytics <span class="nav-item-arrow">▾</span>
+                <div class="nav-dropdown">
+                    <a href="用户行为序列_行为聚焦交互原型.html">用户行为序列</a>
+                    <a href="#">事件分析</a>
+                    <a href="#">漏斗分析</a>
+                    <a href="#">留存分析</a>
+                </div>
+            </div>
+            <div class="nav-item">
+                <span class="nav-item-icon">⚙️</span> 精细化运营 <span class="nav-item-arrow">▾</span>
+            </div>
+            <div class="nav-item active">
+                <span class="nav-item-icon">📦</span> 数据管理 <span class="nav-item-arrow">▾</span>
+                <div class="nav-dropdown">
+                    <a href="元数据管理_事件管理原型.html" class="active">元数据管理</a>
+                    <a href="#">数据导入</a>
+                    <a href="#">数据字典</a>
+                </div>
+            </div>
+            <div class="nav-item">
+                <span class="nav-item-icon">🛡️</span> 风控 <span class="nav-item-arrow">▾</span>
+            </div>
+        </div>
+        <div class="nav-right">
+            <span class="nav-right-icon">🔔</span>
+            <span class="nav-right-icon">⏱️</span>
+            <div class="nav-user">
+                <span class="nav-avatar">A</span>
+                <span>Alan Lyu</span>
+            </div>
+        </div>
+    </nav>
+    <div class="layout">
+        <!-- ===== 左侧导航 ===== -->
+        <aside class="sidebar">
+            <div class="sidebar-title">元数据管理</div>
+            <div class="sidebar-item active" id="nav-module-events" onclick="switchModule('events')">
+                事件管理
+            </div>
+            <div class="sidebar-sub" id="nav-events-sub">
+                <div class="sidebar-sub-item active" id="nav-processed" onclick="switchTab('processed')">加工数据事件</div>
+                <div class="sidebar-sub-item" id="nav-tracking" onclick="switchTab('tracking')">埋点事件</div>
+            </div>
+            <div class="sidebar-divider"></div>
+            <div class="sidebar-item">字段管理</div>
+            <div class="sidebar-item" id="nav-module-metrics" onclick="switchModule('metrics')">指标管理</div>
+            <div class="sidebar-item">动态属性管理</div>
+            <div class="sidebar-item">字典表管理</div>
+        </aside>
+
+        <!-- ===== 主内容区 ===== -->
+        <main class="main">
+            <!-- ==================== 事件管理模块 ==================== -->
+            <div id="module-events">
+
+            <!-- Tab 切换 -->
+            <div class="tabs">
+                <div class="tab active" id="tab-processed" onclick="switchTab('processed')">
+                    加工数据事件 <span class="tab-badge">12</span>
+                </div>
+                <div class="tab" id="tab-tracking" onclick="switchTab('tracking')">
+                    埋点事件 <span class="tab-badge">6</span>
+                </div>
+            </div>
+
+            <!-- ==================== 加工数据事件 ==================== -->
+            <div id="content-processed" class="content-panel">
+                <!-- 筛选区 -->
+                <div class="filter-area">
+                    <div class="filter-row">
+                        <div class="filter-item">
+                            <label>数据域</label>
+                            <select><option value="">请选择数据域</option><option>用户域</option><option>交易域</option><option>广告域</option><option>设备域</option><option>资产域</option></select>
+                        </div>
+                        <div class="filter-item">
+                            <label>事件</label>
+                            <input type="text" placeholder="请输入事件">
+                        </div>
+                        <div class="filter-item">
+                            <label>事件中文名</label>
+                            <input type="text" placeholder="请输入事件中文名">
+                        </div>
+                        <div class="filter-item">
+                            <label>事件英文名</label>
+                            <input type="text" placeholder="请输入事件英文名">
+                        </div>
+                        <button class="btn btn-purple">🔍 查询</button>
+                        <button class="btn-purple-text">↻ 重置</button>
+                    </div>
+                </div>
+
+                <!-- 操作栏 -->
+                <div class="action-bar">
+                    <button class="btn btn-purple" onclick="openUploadEventPage()">+ 上传事件</button>
+                    <button class="btn btn-purple-outline">+ 新建虚拟事件</button>
+                    <button class="btn btn-purple-outline">批量操作</button>
+                </div>
+
+                <!-- 表格 -->
+                <div class="table-wrap" style="overflow-x:auto;">
+                    <table class="table purple-table" style="min-width:1260px;">
+                        <thead>
+                            <tr>
+                                <th>数据库</th>
+                                <th>事件</th>
+                                <th>事件中文名</th>
+                                <th>事件英文名</th>
+                                <th><span class="th-filter">类型</span></th>
+                                <th>分析主体</th>
+                                <th>事件说明</th>
+                                <th>事件说明(英文)</th>
+                                <th>事件来源</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>SNOWFLAKE</td>
+                                <td><span class="link" style="color:#531dab;">VIEW_ADS_TOP_PROFIT_USER_RISK_7D</span></td>
+                                <td>经济高利润用户风控</td>
+                                <td>top profit user ris...</td>
+                                <td><span class="tag tag-behavior">行为</span></td>
+                                <td>USER_ID</td>
+                                <td></td>
+                                <td></td>
+                                <td>自定义分析</td>
+                                <td><div class="ops"><span class="icon-btn" style="color:#531dab;">编辑</span><span class="icon-btn" style="color:#531dab;">更多</span></div></td>
+                            </tr>
+                            <tr>
+                                <td>SNOWFLAKE</td>
+                                <td><span class="link" style="color:#531dab;">VIEW_ADS_NEXUS_D1_SRC_WIDE_DI</span></td>
+                                <td>Dream 项目埋点表</td>
+                                <td>d1_project_even...</td>
+                                <td><span class="tag tag-behavior">行为</span></td>
+                                <td>DEVICE_ID,USER...</td>
+                                <td></td>
+                                <td></td>
+                                <td>自定义分析,用户属...</td>
+                                <td><div class="ops"><span class="icon-btn" style="color:#531dab;">编辑</span><span class="icon-btn" style="color:#531dab;">更多</span></div></td>
+                            </tr>
+                            <tr>
+                                <td>SNOWFLAKE</td>
+                                <td><span class="link" style="color:#531dab;">VIEW_DIM_DEV_DREAM</span></td>
+                                <td>Dream 设备属性表</td>
+                                <td>D1 Device Property</td>
+                                <td><span class="tag tag-attr">属性</span></td>
+                                <td>DEVICE_ID</td>
+                                <td></td>
+                                <td></td>
+                                <td>自定义分析</td>
+                                <td><div class="ops"><span class="icon-btn" style="color:#531dab;">编辑</span><span class="icon-btn" style="color:#531dab;">更多</span></div></td>
+                            </tr>
+                            <tr>
+                                <td>SNOWFLAKE</td>
+                                <td><span class="link" style="color:#531dab;">VIEW_DWD_RECOMMEND_RESULT_HI</span></td>
+                                <td>本期游戏推荐结果推...</td>
+                                <td>recommend_result</td>
+                                <td><span class="tag tag-behavior">行为</span></td>
+                                <td>DEVICE_ID,USER...</td>
+                                <td>本期游戏推荐结果推荐特位...</td>
+                                <td></td>
+                                <td></td>
+                                <td><div class="ops"><span class="icon-btn" style="color:#531dab;">编辑</span><span class="icon-btn" style="color:#531dab;">更多</span></div></td>
+                            </tr>
+                            <tr>
+                                <td>SNOWFLAKE</td>
+                                <td><span class="link" style="color:#531dab;">VIEW_ADS_NEXUS_PJM_SRC_WIDE_DI</span></td>
+                                <td>Funme 项目埋点表</td>
+                                <td>pjm_project_even...</td>
+                                <td><span class="tag tag-behavior">行为</span></td>
+                                <td>DEVICE_ID,USER...</td>
+                                <td></td>
+                                <td></td>
+                                <td>自定义分析,用户属...</td>
+                                <td><div class="ops"><span class="icon-btn" style="color:#531dab;">编辑</span><span class="icon-btn" style="color:#531dab;">更多</span></div></td>
+                            </tr>
+                            <tr>
+                                <td>SNOWFLAKE</td>
+                                <td><span class="link" style="color:#531dab;">VIEW_DWD_TRA_WITHDRAW_HI</span></td>
+                                <td>提现记录</td>
+                                <td>withdraw_record</td>
+                                <td><span class="tag tag-behavior">行为</span></td>
+                                <td>DEVICE_ID,USER...</td>
+                                <td>提现审批明细，可以直接使...</td>
+                                <td>withdraw_detail</td>
+                                <td>自定义分析</td>
+                                <td><div class="ops"><span class="icon-btn" style="color:#531dab;">编辑</span><span class="icon-btn" style="color:#531dab;">更多</span></div></td>
+                            </tr>
+                            <tr>
+                                <td>SNOWFLAKE</td>
+                                <td><span class="link" style="color:#531dab;">VIEW_DIM_GROUP_LABEL_RESULT_DEV...</span></td>
+                                <td>标签记录（设备级...</td>
+                                <td>GROUP_LABEL_D...</td>
+                                <td><span class="tag tag-attr">属性</span></td>
+                                <td>DEVICE_ID</td>
+                                <td></td>
+                                <td></td>
+                                <td>自定义分析</td>
+                                <td><div class="ops"><span class="icon-btn" style="color:#531dab;">编辑</span><span class="icon-btn" style="color:#531dab;">更多</span></div></td>
+                            </tr>
+                            <tr>
+                                <td>SNOWFLAKE</td>
+                                <td><span class="link" style="color:#531dab;">VIEW_DWD_ASSET_ITEM_HI</span></td>
+                                <td>道具/资产获得消耗表</td>
+                                <td>Item Statement</td>
+                                <td><span class="tag tag-behavior">行为</span></td>
+                                <td>DEVICE_ID,USER...</td>
+                                <td>通过"状态"字段区分get和use</td>
+                                <td></td>
+                                <td>自定义分析,用户属...</td>
+                                <td><div class="ops"><span class="icon-btn" style="color:#531dab;">编辑</span><span class="icon-btn" style="color:#531dab;">更多</span></div></td>
+                            </tr>
+                            <tr>
+                                <td>SNOWFLAKE</td>
+                                <td><span class="link" style="color:#531dab;">VIEW_DWD_ASSET_TICKET_HI</span></td>
+                                <td>Tickets获得消耗</td>
+                                <td>Tickets Statement</td>
+                                <td><span class="tag tag-behavior">行为</span></td>
+                                <td>DEVICE_ID,USER...</td>
+                                <td>通过"变化原因"字段区分获得消...</td>
+                                <td></td>
+                                <td>自定义分析,用户属...</td>
+                                <td><div class="ops"><span class="icon-btn" style="color:#531dab;">编辑</span><span class="icon-btn" style="color:#531dab;">更多</span></div></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 分页 -->
+                <div class="pagination-bar">
+                    <div class="page-numbers">
+                        <span class="page-btn disabled">&lt;&lt;</span>
+                        <span class="page-btn disabled">&lt;</span>
+                        <span class="page-btn active">1</span>
+                        <span class="page-btn">2</span>
+                        <span class="page-btn">3</span>
+                        <span class="page-btn">4</span>
+                        <span class="page-btn">5</span>
+                        <span class="page-btn">6</span>
+                        <span class="page-btn">7</span>
+                        <span class="page-btn">&gt;</span>
+                        <span class="page-btn">&gt;&gt;</span>
+                    </div>
+                    <select class="page-select">
+                        <option>50条/页</option>
+                        <option>20条/页</option>
+                        <option>100条/页</option>
+                    </select>
+                    <div class="page-goto">前往 <input type="text" value="1"> 页</div>
+                    <span style="color:#8c8c8c;">共 323 条记录</span>
+                </div>
+            </div>
+
+            <!-- ==================== 埋点事件 ==================== -->
+            <div id="content-tracking" class="content-panel" style="display: none;">
+                
+                <!-- 筛选区 -->
+                <div class="filter-area">
+                    <div class="filter-row">
+                        <div class="filter-item">
+                            <label>事件名</label>
+                            <input type="text" placeholder="请输入事件名">
+                        </div>
+                        <div class="filter-item">
+                            <label>事件中文名</label>
+                            <input type="text" placeholder="请输入事件中文名">
+                        </div>
+                        <div class="filter-item">
+                            <label>事件类型</label>
+                            <select>
+                                <option value="">全部类型</option>
+                                <option>原始事件</option>
+                                <option>虚拟事件</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label>显示状态</label>
+                            <select>
+                                <option value="">全部</option>
+                                <option>显示</option>
+                                <option>隐藏</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary">查询</button>
+                    </div>
+                </div>
+
+                <!-- 操作栏 -->
+                <div class="action-bar">
+                    <button class="btn btn-primary">+ 新建虚拟事件</button>
+                    <!-- <button class="btn btn-default">批量操作</button> -->
+                    <span style="flex:1"></span>
+                    <span style="font-size: 12px; color: #8c8c8c;">最近同步时间：2026-02-14 10:30:00</span>
+                </div>
+
+                <!-- 事件列表 -->
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>事件名</th>
+                                <th>事件中文名</th>
+                                <th>平台</th>
+                                <th>事件类型</th>
+                                <th>显示状态</th>
+                                <th>注册来源</th>
+                                <th>最新同步时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="link" onclick="openDetailModal('page_view')">page_view</span></td>
+                                <td>页面浏览</td>
+                                <td>iOS / Android / Web</td>
+                                <td><span class="tag tag-original">原始事件</span></td>
+                                <td><span class="tag tag-visible">显示</span></td>
+                                <td>埋点平台</td>
+                                <td>2026-02-13 14:20</td>
+                                <td><div class="ops"><span class="icon-btn" onclick="openDetailModal('page_view')">查看</span><span class="icon-btn">字段映射</span><span class="icon-btn" onclick="toggleVisibility(this)">隐藏</span></div></td>
+                            </tr>
+                            <tr>
+                                <td><span class="link">button_click</span></td>
+                                <td>按钮点击</td>
+                                <td>iOS / Android / Web</td>
+                                <td><span class="tag tag-original">原始事件</span></td>
+                                <td><span class="tag tag-visible">显示</span></td>
+                                <td>埋点平台</td>
+                                <td>2026-02-13 14:20</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">字段映射</span><span class="icon-btn" onclick="toggleVisibility(this)">隐藏</span></div></td>
+                            </tr>
+                            <tr>
+                                <td><span class="link">app_launch</span></td>
+                                <td>应用启动</td>
+                                <td>iOS / Android</td>
+                                <td><span class="tag tag-original">原始事件</span></td>
+                                <td><span class="tag tag-visible">显示</span></td>
+                                <td>埋点平台</td>
+                                <td>2026-02-12 09:15</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">字段映射</span><span class="icon-btn" onclick="toggleVisibility(this)">隐藏</span></div></td>
+                            </tr>
+                            <tr>
+                                <td><span class="link">purchase_complete</span></td>
+                                <td>购买完成</td>
+                                <td>iOS / Android / Web</td>
+                                <td><span class="tag tag-original">原始事件</span></td>
+                                <td><span class="tag tag-hidden">隐藏</span></td>
+                                <td>埋点平台</td>
+                                <td>2026-02-12 09:15</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">字段映射</span><span class="icon-btn" onclick="toggleVisibility(this)">显示</span></div></td>
+                            </tr>
+                            <tr>
+                                <td><span class="link">match_start</span></td>
+                                <td>比赛开始</td>
+                                <td>iOS / Android</td>
+                                <td><span class="tag tag-original">原始事件</span></td>
+                                <td><span class="tag tag-visible">显示</span></td>
+                                <td>埋点平台</td>
+                                <td>2026-02-11 16:40</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">字段映射</span><span class="icon-btn" onclick="toggleVisibility(this)">隐藏</span></div></td>
+                            </tr>
+                            <tr>
+                                <td><span class="link">share_event</span></td>
+                                <td>分享事件</td>
+                                <td>iOS / Android / Web</td>
+                                <td><span class="tag tag-virtual">虚拟事件</span></td>
+                                <td><span class="tag tag-visible">显示</span></td>
+                                <td>埋点平台</td>
+                                <td>2026-02-14 10:30</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">字段映射</span><span class="icon-btn" onclick="toggleVisibility(this)">隐藏</span></div></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- ==================== 上传事件页面 ==================== -->
+            <div id="page-upload-event" style="display:none;">
+                <div class="create-page-header">
+                    <a class="create-page-back" onclick="closeUploadEventPage()">← 返回</a>
+                    <span class="create-page-title">上传事件</span>
+                </div>
+
+                <!-- 基本信息 -->
+                <div class="upload-form-card">
+                    <!-- Row 1: 数据库 / schema / 数据表 / 查询 重置 -->
+                    <div class="upload-form-grid">
+                        <div class="upload-form-item"><label>数据库</label><select style="min-width:120px;"><option>SnowFlake</option><option>SelectDB</option></select></div>
+                        <div class="upload-form-item"><label><span class="req">*</span>选择schema</label><select style="min-width:120px;"><option value="">请选择</option><option selected>TMP</option><option>DWD</option><option>DWS</option><option>ADS</option></select></div>
+                        <div class="upload-form-item"><label><span class="req">*</span>同步数据表</label><select style="min-width:220px;"><option value="">请选择数据表</option><option selected>TMP_ADS_MKT_USER_EMAI...</option></select></div>
+                        <button class="btn btn-purple" style="padding:7px 16px;">查询</button>
+                        <button class="btn-purple-text">重置</button>
+                    </div>
+                    <!-- Row 2: 表类型 / 事件中文名称 / 事件英文名称 -->
+                    <div class="upload-form-grid" style="margin-top:14px;">
+                        <div class="upload-form-item"><label><span class="req">*</span>表类型</label><select style="min-width:110px;"><option selected>行为</option><option>属性</option></select></div>
+                        <div class="upload-form-item"><label><span class="req">*</span>事件中文名称</label><div class="input-counter"><input type="text" placeholder="请输入" maxlength="30" style="min-width:180px;"><span class="counter-text">0 / 30</span></div></div>
+                        <div class="upload-form-item"><label>事件英文名称</label><div class="input-counter"><input type="text" placeholder="请输入" maxlength="30" style="min-width:180px;"><span class="counter-text">0 / 30</span></div></div>
+                    </div>
+                    <!-- Row 3: 事件场景 / 分析主体 -->
+                    <div class="upload-form-grid" style="margin-top:14px;">
+                        <div class="upload-form-item"><label><span class="req">*</span>事件场景</label><div style="display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border:1px solid #d9d9d9; border-radius:6px; min-width:160px; font-size:13px;"><span style="display:inline-flex; align-items:center; gap:4px; background:#f0e6ff; color:#531dab; padding:2px 8px; border-radius:4px; font-size:12px;">自定义分析 <span style="cursor:pointer; margin-left:2px;">✕</span></span></div></div>
+                        <div class="upload-form-item"><label><span class="req">*</span>分析主体</label><select style="min-width:180px;"><option value="">请选择分析主体</option><option>USER_ID</option><option>DEVICE_ID</option><option>VISITOR_ID</option></select></div>
+                    </div>
+                    <!-- Row 4: 可转换时区 -->
+                    <div class="upload-form-grid" style="margin-top:14px; align-items:center;">
+                        <div class="upload-form-item"><label><span class="req">*</span>可转换时区</label><select style="min-width:110px;"><option value="">请选择</option><option>是</option><option>否</option></select></div>
+                        <span style="font-size:12px; color:#8c8c8c;">请择是。表示该表的created_at字段可以被任意切换时区来查询且数据是正确</span>
+                    </div>
+                    <!-- Row 5: 通用指标 -->
+                    <div style="display:flex; align-items:center; gap:6px; margin-top:16px; flex-wrap:wrap;">
+                        <label style="font-size:13px; font-weight:500; color:#262626; margin-right:8px;"><span style="color:#ff4d4f; margin-right:2px;">*</span>通用指标</label>
+                        <label style="display:inline-flex; align-items:center; gap:4px; font-size:13px; color:#262626; cursor:pointer;"><input type="checkbox" class="checkbox" checked style="accent-color:#531dab;"> 总次数</label>
+                        <label style="display:inline-flex; align-items:center; gap:4px; font-size:13px; color:#262626; cursor:pointer;"><input type="checkbox" class="checkbox" checked style="accent-color:#531dab;"> 触发天数</label>
+                        <label style="display:inline-flex; align-items:center; gap:4px; font-size:13px; color:#595959; cursor:pointer;"><input type="checkbox" class="checkbox" style="accent-color:#531dab;"> 触发设备数</label>
+                        <label style="display:inline-flex; align-items:center; gap:4px; font-size:13px; color:#595959; cursor:pointer;"><input type="checkbox" class="checkbox" style="accent-color:#531dab;"> 触发用户数</label>
+                        <label style="display:inline-flex; align-items:center; gap:4px; font-size:13px; color:#595959; cursor:pointer;"><input type="checkbox" class="checkbox" style="accent-color:#531dab;"> 人均次数</label>
+                        <label style="display:inline-flex; align-items:center; gap:4px; font-size:13px; color:#595959; cursor:pointer;"><input type="checkbox" class="checkbox" style="accent-color:#531dab;"> 设备均次数</label>
+                        <label style="display:inline-flex; align-items:center; gap:4px; font-size:13px; color:#595959; cursor:pointer;"><input type="checkbox" class="checkbox" style="accent-color:#531dab;"> 触发访客数</label>
+                        <label style="display:inline-flex; align-items:center; gap:4px; font-size:13px; color:#595959; cursor:pointer;"><input type="checkbox" class="checkbox" style="accent-color:#531dab;"> 访客均次数</label>
+                    </div>
+                    <!-- Row 6: 事件说明 -->
+                    <div class="upload-desc-row" style="margin-top:16px;">
+                        <div class="upload-desc-item">
+                            <label>事件说明</label>
+                            <textarea placeholder="请输入事件说明" maxlength="500"></textarea>
+                            <div class="upload-desc-counter">0 / 500</div>
+                        </div>
+                        <div class="upload-desc-item">
+                            <label>事件说明(英文)</label>
+                            <textarea placeholder="Please enter event description" maxlength="500"></textarea>
+                            <div class="upload-desc-counter">0 / 500</div>
+                        </div>
+                    </div>
+                    <!-- Row 7: 模板导入 -->
+                    <div style="display:flex; align-items:center; gap:12px; margin-top:20px; padding-top:16px; border-top:1px solid #f0f0f0;">
+                        <span style="font-size:13px; color:#262626; font-weight:500;">模板导入</span>
+                        <button class="btn btn-purple" style="padding:5px 14px; font-size:12px;">上传模板</button>
+                        <span style="font-size:13px; color:#531dab; cursor:pointer;">下载模板</span>
+                        <span style="font-size:12px; color:#ff4d4f;">(仅支持csv文件)</span>
+                    </div>
+                </div>
+
+                <!-- 字段管理区 -->
+                <div class="upload-form-card">
+                    <!-- 字段筛选 -->
+                    <div style="margin-bottom:16px;">
+                        <div class="filter-row">
+                            <div class="filter-item"><label>字段名</label><input type="text" placeholder="请输入字段名" style="min-width:130px;"></div>
+                            <div class="filter-item"><label>字段中文名</label><input type="text" placeholder="请输入字段中文名" style="min-width:130px;"></div>
+                            <div class="filter-item"><label>字段英文名</label><input type="text" placeholder="请输入字段英文名" style="min-width:130px;"></div>
+                            <div class="filter-item"><label>字段类型</label><select style="min-width:130px;"><option value="">请选择字段类型</option><option>文本</option><option>数字</option><option>日期</option></select></div>
+                        </div>
+                        <div class="filter-row" style="margin-top:10px;">
+                            <div class="filter-item"><label>字段场景</label><select style="min-width:140px;"><option value="">请选择字段场景</option><option>基础</option><option>属性</option><option>公参</option></select></div>
+                            <div class="filter-item"><label>字段状态</label><select style="min-width:140px;"><option value="">请选择字段状态</option><option>显示</option><option>隐藏</option></select></div>
+                            <button class="btn btn-purple" style="padding:5px 14px; font-size:12px;">🔍 查询</button>
+                            <button class="btn-purple-text" style="font-size:12px; padding:5px 12px;">↻ 重置</button>
+                        </div>
+                    </div>
+
+                    <!-- 字段表格 -->
+                    <div class="table-wrap">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>字段名</th>
+                                    <th>✎ 字段中文名</th>
+                                    <th>✎ 字段英文名</th>
+                                    <th>字段类型</th>
+                                    <th>✎ 字段分类</th>
+                                    <th>✎ 字段场景</th>
+                                    <th>✎ 字段状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style="font-family:monospace; font-size:12px;">NICKNAME</td>
+                                    <td>昵称</td>
+                                    <td>Nick Name</td>
+                                    <td>文本</td>
+                                    <td>维度</td>
+                                    <td></td>
+                                    <td></td>
+                                    <td><span class="btn btn-default btn-sm">编辑</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-family:monospace; font-size:12px;">LEGAL_STATE_FLAG</td>
+                                    <td></td>
+                                    <td>LEGAL_STATE_FLAG</td>
+                                    <td>数字</td>
+                                    <td></td>
+                                    <td></td>
+                                    <td><span class="tag tag-visible">显示</span></td>
+                                    <td><span class="btn btn-default btn-sm">编辑</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-family:monospace; font-size:12px;">BLACKLIST_FLAG</td>
+                                    <td></td>
+                                    <td>BLACKLIST_FLAG</td>
+                                    <td>数字</td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td><span class="btn btn-default btn-sm">编辑</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-family:monospace; font-size:12px;">BUCKET_IDS</td>
+                                    <td></td>
+                                    <td>BUCKET_IDS</td>
+                                    <td>文本</td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td><span class="btn btn-default btn-sm">编辑</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-family:monospace; font-size:12px;">LAST_MONTH_DELIVERED...</td>
+                                    <td></td>
+                                    <td>LAST_MONTH_DELIVERED...</td>
+                                    <td>数字</td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td><span class="btn btn-default btn-sm">编辑</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-family:monospace; font-size:12px;">SOURCE_FLAG</td>
+                                    <td>SOURCE_FLAG</td>
+                                    <td>SOURCE_FLAG</td>
+                                    <td>文本</td>
+                                    <td>指标</td>
+                                    <td></td>
+                                    <td><span class="tag tag-visible">显示</span></td>
+                                    <td><span class="btn btn-default btn-sm">编辑</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-family:monospace; font-size:12px;">ZONE_OFFSET</td>
+                                    <td>用户时钟偏移</td>
+                                    <td>Zone Offset</td>
+                                    <td>文本</td>
+                                    <td>维度</td>
+                                    <td></td>
+                                    <td><span class="tag tag-visible">显示</span></td>
+                                    <td><span class="btn btn-default btn-sm">编辑</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-family:monospace; font-size:12px;">USER_ID</td>
+                                    <td>USER_ID</td>
+                                    <td>USER_ID</td>
+                                    <td>数字</td>
+                                    <td>公参</td>
+                                    <td></td>
+                                    <td><span class="tag tag-visible">显示</span></td>
+                                    <td><span class="btn btn-default btn-sm">编辑</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-family:monospace; font-size:12px;">APP_NAME</td>
+                                    <td>APP_NAME</td>
+                                    <td>APP_NAME</td>
+                                    <td>文本</td>
+                                    <td>维度</td>
+                                    <td></td>
+                                    <td><span class="tag tag-visible">显示</span></td>
+                                    <td><span class="btn btn-default btn-sm">编辑</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-family:monospace; font-size:12px;">UN_OPEN_NUM</td>
+                                    <td></td>
+                                    <td>UN_OPEN_NUM</td>
+                                    <td>数字</td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td><span class="btn btn-default btn-sm">编辑</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 分页 -->
+                    <div class="pagination-bar">
+                        <select class="page-select"><option>50条/页</option><option>20条/页</option><option>100条/页</option></select>
+                        <div class="page-numbers">
+                            <span class="page-btn disabled">&lt;&lt;</span>
+                            <span class="page-btn disabled">&lt;</span>
+                            <span class="page-btn active">1</span>
+                            <span class="page-btn">&gt;</span>
+                            <span class="page-btn">&gt;&gt;</span>
+                        </div>
+                        <div class="page-goto">前往 <input type="text" value="1"> 页</div>
+                        <span style="color:#8c8c8c;">共 22 条记录</span>
+                    </div>
+                </div>
+
+                <!-- 底部操作 -->
+                <div class="upload-footer">
+                    <button class="btn btn-green" onclick="closeUploadEventPage()">保存</button>
+                    <button class="btn btn-default" onclick="closeUploadEventPage()">取消</button>
+                </div>
+            </div><!-- /page-upload-event -->
+
+            </div><!-- /module-events -->
+
+            <!-- ==================== 指标管理模块 ==================== -->
+            <div id="module-metrics" style="display: none;">
+
+                <!-- 筛选区 -->
+                <div class="filter-area">
+                    <div class="filter-row">
+                        <div class="filter-item">
+                            <label>指标名称</label>
+                            <input type="text" placeholder="请输入指标名称或英文名">
+                        </div>
+                        <div class="filter-item">
+                            <label>层级</label>
+                            <select>
+                                <option value="">全部层级</option>
+                                <option>公司级</option>
+                                <option disabled>── 项目组 ──</option>
+                                <option>MTP</option>
+                                <option>P7</option>
+                                <option>PC</option>
+                                <option>UGX</option>
+                                <option>D1</option>
+                                <option disabled>──────</option>
+                                <option>个人</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label>场景</label>
+                            <select>
+                                <option value="">全部场景</option>
+                                <option>用户增长</option>
+                                <option>营收</option>
+                                <option>活跃</option>
+                                <option>广告</option>
+                                <option>内容</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label>创建方式</label>
+                            <select>
+                                <option value="">全部方式</option>
+                                <option>自定义分析</option>
+                                <option>留存分析</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label>分析主体</label>
+                            <select>
+                                <option value="">全部主体</option>
+                                <option>USER_ID</option>
+                                <option>DEVICE_ID</option>
+                                <option>VISITOR_ID</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary">查询</button>
+                        <button class="btn btn-default">重置</button>
+                    </div>
+                </div>
+
+                <!-- 操作栏 -->
+                <div class="action-bar">
+                    <button class="btn btn-primary" onclick="openCreateMetricModal()">+ 新建指标</button>
+                    <span style="flex:1"></span>
+                    <span style="font-size: 12px; color: #8c8c8c;">共 15 个指标</span>
+                </div>
+
+                <!-- 指标列表 -->
+                <div class="table-wrap" style="overflow-x:auto;">
+                    <table class="table" id="metricTable">
+                        <thead>
+                            <tr>
+                                <th>指标名称</th>
+                                <th>指标英文名</th>
+                                <th>场景</th>
+                                <th>指标类型</th>
+                                <th>创建方式</th>
+                                <th>分析主体</th>
+                                <th>创建人</th>
+                                <th>最后更新人</th>
+                                <th>更新时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- ▼ 公司级指标 -->
+                            <tr class="group-header" onclick="toggleGroup('company')">
+                                <td colspan="10"><span class="group-arrow" id="arrow-company">▼</span><span class="tag tag-level-company">公司级</span><span class="group-title">公司级指标</span><span class="group-count">5 个指标</span><span class="group-desc">管理员统一维护，全员可查看使用</span></td>
+                            </tr>
+                            <tr class="group-row group-company" data-formula="COUNT(DISTINCT user_id)">
+                                <td><span class="link">日活跃用户数</span></td>
+                                <td style="font-family:monospace; font-size:12px;">dau</td>
+                                <td>活跃</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>USER_ID</td>
+                                <td>管理员A</td>
+                                <td>管理员A</td>
+                                <td>2026-02-20</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">编辑</span><span class="icon-btn" style="color:#ff4d4f;">删除</span></div></td>
+                            </tr>
+                            <tr class="group-row group-company" data-formula="SUM(pay_amount)">
+                                <td><span class="link">总收入</span></td>
+                                <td style="font-family:monospace; font-size:12px;">total_revenue</td>
+                                <td>营收</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>USER_ID</td>
+                                <td>管理员A</td>
+                                <td>管理员B</td>
+                                <td>2026-02-19</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">编辑</span><span class="icon-btn" style="color:#ff4d4f;">删除</span></div></td>
+                            </tr>
+                            <tr class="group-row group-company" data-formula="retained_7d / cohort_size">
+                                <td><span class="link">7日留存率</span></td>
+                                <td style="font-family:monospace; font-size:12px;">retention_7d</td>
+                                <td>用户增长</td>
+                                <td>cohort指标</td>
+                                <td>留存分析</td>
+                                <td>USER_ID</td>
+                                <td>管理员B</td>
+                                <td>管理员B</td>
+                                <td>2026-02-18</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">编辑</span><span class="icon-btn" style="color:#ff4d4f;">删除</span></div></td>
+                            </tr>
+                            <tr class="group-row group-company" data-formula="total_revenue / dau">
+                                <td><span class="link">ARPU</span></td>
+                                <td style="font-family:monospace; font-size:12px;">arpu</td>
+                                <td>营收</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>USER_ID</td>
+                                <td>管理员A</td>
+                                <td>管理员A</td>
+                                <td>2026-02-16</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">编辑</span><span class="icon-btn" style="color:#ff4d4f;">删除</span></div></td>
+                            </tr>
+                            <tr class="group-row group-company" data-formula="COUNT(DISTINCT user_id) 月度">
+                                <td><span class="link">月活跃用户数</span></td>
+                                <td style="font-family:monospace; font-size:12px;">mau</td>
+                                <td>活跃</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>USER_ID</td>
+                                <td>管理员B</td>
+                                <td>管理员A</td>
+                                <td>2026-02-15</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">编辑</span><span class="icon-btn" style="color:#ff4d4f;">删除</span></div></td>
+                            </tr>
+                            <!-- ▼ 项目组指标 -->
+                            <tr class="group-header" onclick="toggleGroup('group')">
+                                <td colspan="10"><span class="group-arrow" id="arrow-group">▼</span><span class="tag tag-level-group">项目组</span><span class="group-title">项目组指标</span><span class="group-count">7 个指标 · 3 个项目组</span><span class="group-desc">项目组成员可见可编辑</span></td>
+                            </tr>
+                            <tr class="sub-group-header group-row group-group" onclick="toggleGroup('grp-growth'); event.stopPropagation();">
+                                <td colspan="10"><span class="group-arrow sub-arrow" id="arrow-grp-growth">▼</span><span class="sub-group-name">MTP</span><span class="group-count">3 个指标</span></td>
+                            </tr>
+                            <tr class="group-row group-group group-row-sub group-grp-growth" data-formula="retained_1d_new / new_users">
+                                <td><span class="link">新用户次日留存率</span></td>
+                                <td style="font-family:monospace; font-size:12px;">new_user_retention_1d</td>
+                                <td>用户增长</td>
+                                <td>cohort指标</td>
+                                <td>留存分析</td>
+                                <td>USER_ID</td>
+                                <td>张三</td>
+                                <td>张三</td>
+                                <td>2026-02-22</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">编辑</span><span class="icon-btn" style="color:#ff4d4f;">删除</span></div></td>
+                            </tr>
+                            <tr class="group-row group-group group-row-sub group-grp-growth" data-formula="SUM(cost) / COUNT(new_user)">
+                                <td><span class="link">渠道获客成本</span></td>
+                                <td style="font-family:monospace; font-size:12px;">cac_by_channel</td>
+                                <td>用户增长</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>USER_ID</td>
+                                <td>李四</td>
+                                <td>张三</td>
+                                <td>2026-02-21</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">编辑</span><span class="icon-btn" style="color:#ff4d4f;">删除</span></div></td>
+                            </tr>
+                            <tr class="group-row group-group group-row-sub group-grp-growth" data-formula="organic_pay / organic_visit">
+                                <td><span class="link">自然流量转化率</span></td>
+                                <td style="font-family:monospace; font-size:12px;">organic_conversion_rate</td>
+                                <td>用户增长</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>VISITOR_ID</td>
+                                <td>张三</td>
+                                <td>李四</td>
+                                <td>2026-02-20</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">编辑</span><span class="icon-btn" style="color:#ff4d4f;">删除</span></div></td>
+                            </tr>
+                            <tr class="sub-group-header group-row group-group" onclick="toggleGroup('grp-monetize'); event.stopPropagation();">
+                                <td colspan="10"><span class="group-arrow sub-arrow" id="arrow-grp-monetize">▼</span><span class="sub-group-name">P7</span><span class="group-count">2 个指标</span></td>
+                            </tr>
+                            <tr class="group-row group-group group-row-sub group-grp-monetize" data-formula="SUM(ad_views) / dau">
+                                <td><span class="link">人均广告观看次数</span></td>
+                                <td style="font-family:monospace; font-size:12px;">avg_ad_views_per_user</td>
+                                <td>广告</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>USER_ID</td>
+                                <td>王五</td>
+                                <td>王五</td>
+                                <td>2026-02-17</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">编辑</span><span class="icon-btn" style="color:#ff4d4f;">删除</span></div></td>
+                            </tr>
+                            <tr class="group-row group-group group-row-sub group-grp-monetize" data-formula="filled_requests / total_requests">
+                                <td><span class="link">广告填充率</span></td>
+                                <td style="font-family:monospace; font-size:12px;">ad_fill_rate</td>
+                                <td>广告</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>DEVICE_ID</td>
+                                <td>赵六</td>
+                                <td>王五</td>
+                                <td>2026-02-18</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">编辑</span><span class="icon-btn" style="color:#ff4d4f;">删除</span></div></td>
+                            </tr>
+                            <tr class="sub-group-header group-row group-group" onclick="toggleGroup('grp-data'); event.stopPropagation();">
+                                <td colspan="10"><span class="group-arrow sub-arrow" id="arrow-grp-data">▼</span><span class="sub-group-name">PC</span><span class="group-count">2 个指标</span></td>
+                            </tr>
+                            <tr class="group-row group-group group-row-sub group-grp-data" data-formula="AVG(finish_ts - start_ts)">
+                                <td><span class="link">数据处理延迟</span></td>
+                                <td style="font-family:monospace; font-size:12px;">data_process_latency</td>
+                                <td>活跃</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>USER_ID</td>
+                                <td>孙七</td>
+                                <td>孙七</td>
+                                <td>2026-02-19</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">编辑</span><span class="icon-btn" style="color:#ff4d4f;">删除</span></div></td>
+                            </tr>
+                            <tr class="group-row group-group group-row-sub group-grp-data" data-formula="success_jobs / total_jobs">
+                                <td><span class="link">ETL成功率</span></td>
+                                <td style="font-family:monospace; font-size:12px;">etl_success_rate</td>
+                                <td>活跃</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>USER_ID</td>
+                                <td>孙七</td>
+                                <td>管理员A</td>
+                                <td>2026-02-16</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">编辑</span><span class="icon-btn" style="color:#ff4d4f;">删除</span></div></td>
+                            </tr>
+                            <!-- ▼ 个人指标 -->
+                            <tr class="group-header" onclick="toggleGroup('personal')">
+                                <td colspan="10"><span class="group-arrow" id="arrow-personal">▼</span><span class="tag tag-level-personal">个人</span><span class="group-title">个人指标</span><span class="group-count">3 个指标</span><span class="group-desc">仅自己可见可编辑</span></td>
+                            </tr>
+                            <tr class="group-row group-personal" data-formula="pay_users / active_users">
+                                <td><span class="link">我的付费转化率</span></td>
+                                <td style="font-family:monospace; font-size:12px;">my_pay_conversion</td>
+                                <td>营收</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>USER_ID</td>
+                                <td>我</td>
+                                <td>我</td>
+                                <td>2026-02-22</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">编辑</span><span class="icon-btn" style="color:#ff4d4f;">删除</span></div></td>
+                            </tr>
+                            <tr class="group-row group-personal" data-formula="ad_revenue / ad_cost">
+                                <td><span class="link">广告ROI测试</span></td>
+                                <td style="font-family:monospace; font-size:12px;">ad_roi_test</td>
+                                <td>广告</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>DEVICE_ID</td>
+                                <td>我</td>
+                                <td>我</td>
+                                <td>2026-02-23</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">编辑</span><span class="icon-btn" style="color:#ff4d4f;">删除</span></div></td>
+                            </tr>
+                            <tr class="group-row group-personal" data-formula="dau / total_registered">
+                                <td><span class="link">活跃用户占比</span></td>
+                                <td style="font-family:monospace; font-size:12px;">active_user_ratio</td>
+                                <td>活跃</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>USER_ID</td>
+                                <td>我</td>
+                                <td>我</td>
+                                <td>2026-02-21</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span><span class="icon-btn">编辑</span><span class="icon-btn" style="color:#ff4d4f;">删除</span></div></td>
+                            </tr>
+                            <!-- ▼ 他人分享 -->
+                            <tr class="group-header" onclick="toggleGroup('shared')">
+                                <td colspan="10"><span class="group-arrow" id="arrow-shared">▼</span><span class="tag tag-shared">分享</span><span class="group-title">他人分享给我</span><span class="group-count">3 个指标</span><span class="group-desc">可查看使用，不可修改</span></td>
+                            </tr>
+                            <tr class="group-row group-shared" data-formula="avg_revenue * avg_lifespan">
+                                <td><span class="link">用户LTV预估</span></td>
+                                <td style="font-family:monospace; font-size:12px;">user_ltv_estimate</td>
+                                <td>营收</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>USER_ID</td>
+                                <td>王五</td>
+                                <td>王五</td>
+                                <td>2026-02-21</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span></div></td>
+                            </tr>
+                            <tr class="group-row group-shared" data-formula="SUM(first_pay_amount)">
+                                <td><span class="link">首充金额分布</span></td>
+                                <td style="font-family:monospace; font-size:12px;">first_pay_distribution</td>
+                                <td>营收</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>USER_ID</td>
+                                <td>张三</td>
+                                <td>李四</td>
+                                <td>2026-02-20</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span></div></td>
+                            </tr>
+                            <tr class="group-row group-shared" data-formula="ad_revenue / impressions * 1000">
+                                <td><span class="link">广告eCPM</span></td>
+                                <td style="font-family:monospace; font-size:12px;">ad_ecpm</td>
+                                <td>广告</td>
+                                <td>普通/公式指标</td>
+                                <td>自定义分析</td>
+                                <td>DEVICE_ID</td>
+                                <td>李四</td>
+                                <td>李四</td>
+                                <td>2026-02-19</td>
+                                <td><div class="ops"><span class="icon-btn">查看</span></div></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div><!-- /module-metrics -->
+
+            <!-- ==================== 创建指标页面 ==================== -->
+            <div id="page-create-metric" style="display:none;">
+                <!-- 页面顶部 -->
+                <div class="create-page-header">
+                    <a class="create-page-back" onclick="closeCreateMetricPage()">← 返回</a>
+                    <span class="create-page-title">指标详情</span>
+                </div>
+
+                <!-- 区块一：指标口径 -->
+                <div class="form-section">
+                    <div class="form-section-header">指标口径</div>
+                    <div class="form-section-body">
+                        <div class="hform-row">
+                            <label class="hform-label">创建方式</label>
+                            <div class="hform-field">
+                                <span style="display:inline-flex; align-items:center; gap:6px; padding:6px 0; font-size:13px; color:#262626;"><span style="display:inline-block; width:14px; height:14px; border-radius:50%; border:2px solid #722ed1; position:relative;"><span style="position:absolute; top:3px; left:3px; width:6px; height:6px; border-radius:50%; background:#722ed1;"></span></span> 事件分析</span>
+                            </div>
+                        </div>
+                        <div class="hform-row">
+                            <label class="hform-label"><span class="required">*</span>分析主体</label>
+                            <div class="hform-field">
+                                <select class="form-select" id="analysisSubject">
+                                    <option value="">请选择分析主体</option>
+                                    <option value="USER_ID" selected>USER_ID</option>
+                                    <option value="DEVICE_ID">DEVICE_ID</option>
+                                    <option value="VISITOR_ID">VISITOR_ID</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="hform-row">
+                            <label class="hform-label"><span class="required">*</span>指标场景</label>
+                            <div class="hform-field">
+                                <select class="form-select" id="scenarioSelect" onchange="onScenarioChange()">
+                                    <option value="">请选择指标所属场景</option>
+                                    <option value="用户增长">用户增长</option>
+                                    <option value="营收">营收</option>
+                                    <option value="活跃">活跃</option>
+                                    <option value="广告">广告</option>
+                                    <option value="内容">内容</option>
+                                    <option value="__new__">+ 新建场景...</option>
+                                </select>
+                                <div id="newScenarioInput" style="display:none; margin-top:10px; padding:14px 16px; background:#f6f8fa; border-radius:8px; border:1px dashed #d9d9d9;">
+                                    <div style="font-size:13px; font-weight:500; color:#262626; margin-bottom:10px;">创建新场景</div>
+                                    <div style="display:flex; gap:10px; margin-bottom:8px;">
+                                        <input class="form-input" id="newScenarioName" type="text" placeholder="场景名称，如：社交" style="flex:1;">
+                                        <button class="btn btn-primary" onclick="addNewScenario()">确认添加</button>
+                                        <button class="btn btn-default" onclick="cancelNewScenario()">取消</button>
+                                    </div>
+                                    <span class="form-hint">新场景将归入"默认分组"，后续可在场景管理中调整分组</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="hform-row">
+                            <label class="hform-label"><span class="required">*</span>指标层级</label>
+                            <div class="hform-field">
+                                <select class="form-select" id="createMetricLevel" onchange="onLevelChange()">
+                                    <option value="personal">个人指标</option>
+                                    <option value="group">项目指标</option>
+                                    <option value="company">公司指标</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="hform-row" id="projectSelectGroup" style="display:none;">
+                            <label class="hform-label"><span class="required">*</span>所属项目</label>
+                            <div class="hform-field">
+                                <select class="form-select" id="projectSelect">
+                                    <option value="">请选择项目</option>
+                                    <option value="MTP">MTP</option>
+                                    <option value="P7">P7</option>
+                                    <option value="PC">PC</option>
+                                    <option value="UGX">UGX</option>
+                                    <option value="D1">D1</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="hform-row">
+                            <label class="hform-label"><span class="required">*</span>指标口径</label>
+                            <div class="hform-field">
+                                <textarea class="form-textarea" id="formulaInput" style="min-height:100px; font-family:'SF Mono','Monaco','Menlo',monospace; font-size:13px;" placeholder="输入指标的计算公式，如：&#10;COUNT(DISTINCT user_id)&#10;WHERE event_date = ${date} AND is_active = 1" oninput="updateCounter('formulaInput','formulaCounter',500)"></textarea>
+                                <div class="hform-counter"><span id="formulaCounter">0</span> / 500</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 区块二：命名与备注 -->
+                <div class="form-section">
+                    <div class="form-section-header">命名与备注</div>
+                    <div class="form-section-body">
+                        <div class="hform-row">
+                            <label class="hform-label"><span class="required">*</span>中文名</label>
+                            <div class="hform-field">
+                                <input class="form-input" id="cnNameInput" type="text" placeholder="请输入指标名称，如：日活跃用户数" maxlength="50" oninput="updateCounter('cnNameInput','cnNameCounter',50)">
+                                <div class="hform-counter"><span id="cnNameCounter">0</span> / 50</div>
+                            </div>
+                        </div>
+                        <div class="hform-row">
+                            <label class="hform-label"><span class="required">*</span>英文名</label>
+                            <div class="hform-field">
+                                <input class="form-input" id="enNameInput" type="text" placeholder="请输入英文标识，如：dau" maxlength="50" oninput="updateCounter('enNameInput','enNameCounter',50)">
+                                <div class="hform-counter"><span id="enNameCounter">0</span> / 50</div>
+                                <span class="form-hint">用于系统内唯一标识，仅支持小写字母、数字和下划线</span>
+                            </div>
+                        </div>
+                        <div class="hform-row">
+                            <label class="hform-label"><span class="required">*</span>备注中文</label>
+                            <div class="hform-field">
+                                <textarea class="form-textarea" id="cnDescInput" placeholder="描述指标的业务含义、使用场景和注意事项等" maxlength="128" oninput="updateCounter('cnDescInput','cnDescCounter',128)"></textarea>
+                                <div class="hform-counter"><span id="cnDescCounter">0</span> / 128</div>
+                            </div>
+                        </div>
+                        <div class="hform-row">
+                            <label class="hform-label">备注英文</label>
+                            <div class="hform-field">
+                                <textarea class="form-textarea" id="enDescInput" placeholder="English description for the metric (optional)" maxlength="128" oninput="updateCounter('enDescInput','enDescCounter',128)"></textarea>
+                                <div class="hform-counter"><span id="enDescCounter">0</span> / 128</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 底部操作栏 -->
+                <div class="create-metric-footer">
+                    <button class="btn btn-default" onclick="closeCreateMetricPage()">取消</button>
+                    <button class="btn btn-primary" onclick="closeCreateMetricPage()">确认创建</button>
+                </div>
+            </div><!-- /page-create-metric -->
+
+            <!-- ==================== 查看/编辑指标详情页面 ==================== -->
+            <div id="page-view-metric" style="display:none;">
+                <div class="create-page-header">
+                    <a class="create-page-back" onclick="cancelMetricEdit()">← 返回</a>
+                    <span class="create-page-title" id="viewMetricPageTitle">查看指标</span>
+                    <span id="viewMetricLevelTag" class="tag tag-level-company" style="margin-left:12px;">公司级</span>
+                    <span style="flex:1;"></span>
+                    <div id="viewModeActions"><button class="btn btn-primary" onclick="enterEditMode()">编辑</button></div>
+                    <div id="editModeActions" style="display:none;"><button class="btn btn-default" onclick="cancelMetricEdit()">取消</button><button class="btn btn-primary" style="margin-left:10px;" onclick="showSaveConfirm()">保存</button></div>
+                </div>
+
+                <!-- 指标口径 -->
+                <div class="form-section">
+                    <div class="form-section-header">指标口径</div>
+                    <div class="form-section-body">
+                        <div class="hform-row">
+                            <label class="hform-label">创建方式</label>
+                            <div class="hform-field">
+                                <div class="hform-value view-el" id="viewCreateMethod">自定义分析</div>
+                                <select class="form-select edit-el" id="editCreateMethod" style="display:none;">
+                                    <option value="自定义分析">自定义分析</option>
+                                    <option value="留存分析">留存分析</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="hform-row">
+                            <label class="hform-label">分析主体</label>
+                            <div class="hform-field">
+                                <div class="hform-value view-el" id="viewSubject">USER_ID</div>
+                                <select class="form-select edit-el" id="editSubject" style="display:none;">
+                                    <option value="USER_ID">USER_ID</option>
+                                    <option value="DEVICE_ID">DEVICE_ID</option>
+                                    <option value="VISITOR_ID">VISITOR_ID</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="hform-row">
+                            <label class="hform-label">指标场景</label>
+                            <div class="hform-field">
+                                <div class="hform-value view-el" id="viewScenario">活跃</div>
+                                <select class="form-select edit-el" id="editScenario" style="display:none;">
+                                    <option value="用户增长">用户增长</option>
+                                    <option value="营收">营收</option>
+                                    <option value="活跃">活跃</option>
+                                    <option value="广告">广告</option>
+                                    <option value="内容">内容</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="hform-row">
+                            <label class="hform-label">指标层级</label>
+                            <div class="hform-field">
+                                <div class="hform-value view-el" id="viewLevel">公司级指标</div>
+                                <select class="form-select edit-el" id="editLevel" style="display:none;" onchange="onEditLevelChange()">
+                                    <option value="personal">个人指标</option>
+                                    <option value="group">项目组指标</option>
+                                    <option value="company">公司级指标</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="hform-row" id="viewProjectRow" style="display:none;">
+                            <label class="hform-label">所属项目</label>
+                            <div class="hform-field">
+                                <div class="hform-value view-el" id="viewProject">—</div>
+                                <select class="form-select edit-el" id="editProject" style="display:none;">
+                                    <option value="MTP">MTP</option>
+                                    <option value="P7">P7</option>
+                                    <option value="PC">PC</option>
+                                    <option value="UGX">UGX</option>
+                                    <option value="D1">D1</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="hform-row">
+                            <label class="hform-label">指标口径</label>
+                            <div class="hform-field" style="max-width:580px;">
+                                <div class="formula-box view-el" id="viewFormula">—</div>
+                                <textarea class="form-textarea edit-el" id="editFormula" style="display:none; min-height:100px; font-family:'SF Mono','Monaco','Menlo',monospace; font-size:13px; width:480px;"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 命名与备注 -->
+                <div class="form-section">
+                    <div class="form-section-header">命名与备注</div>
+                    <div class="form-section-body">
+                        <div class="hform-row">
+                            <label class="hform-label">中文名</label>
+                            <div class="hform-field">
+                                <div class="hform-value view-el" id="viewCnName">日活跃用户数</div>
+                                <input class="form-input edit-el" id="editCnName" type="text" maxlength="50" style="display:none;">
+                            </div>
+                        </div>
+                        <div class="hform-row">
+                            <label class="hform-label">英文名</label>
+                            <div class="hform-field">
+                                <div class="hform-value mono view-el" id="viewEnName">dau</div>
+                                <input class="form-input edit-el" id="editEnName" type="text" maxlength="50" style="display:none;">
+                            </div>
+                        </div>
+                        <div class="hform-row">
+                            <label class="hform-label">备注中文</label>
+                            <div class="hform-field" style="max-width:580px;">
+                                <div class="hform-value view-el" id="viewCnDesc">—</div>
+                                <textarea class="form-textarea edit-el" id="editCnDesc" maxlength="128" style="display:none; width:480px;"></textarea>
+                            </div>
+                        </div>
+                        <div class="hform-row">
+                            <label class="hform-label">备注英文</label>
+                            <div class="hform-field" style="max-width:580px;">
+                                <div class="hform-value view-el" id="viewEnDesc" style="color:#8c8c8c;">—</div>
+                                <textarea class="form-textarea edit-el" id="editEnDesc" maxlength="128" style="display:none; width:480px;"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 其他信息（始终只读） -->
+                <div class="form-section">
+                    <div class="form-section-header">其他信息</div>
+                    <div class="form-section-body">
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px 40px;">
+                            <div class="hform-row" style="margin-bottom:0;">
+                                <label class="hform-label">指标类型</label>
+                                <div class="hform-field"><div class="hform-value" id="viewMetricType">普通/公式指标</div></div>
+                            </div>
+                            <div class="hform-row" style="margin-bottom:0;">
+                                <label class="hform-label">创建人</label>
+                                <div class="hform-field"><div class="hform-value" id="viewCreator">管理员A</div></div>
+                            </div>
+                            <div class="hform-row" style="margin-bottom:0;">
+                                <label class="hform-label">最后更新人</label>
+                                <div class="hform-field"><div class="hform-value" id="viewUpdater">管理员A</div></div>
+                            </div>
+                            <div class="hform-row" style="margin-bottom:0;">
+                                <label class="hform-label">更新时间</label>
+                                <div class="hform-field"><div class="hform-value" id="viewUpdateTime">2026-02-20 14:30</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 被引用的分析模版（始终只读） -->
+                <div class="form-section">
+                    <div class="form-section-header">被引用的分析模版</div>
+                    <div class="form-section-body">
+                        <div class="ref-event-list" id="viewRefTemplates">
+                            <span class="confirm-ref-tag">日活跃用户趋势</span>
+                            <span class="confirm-ref-tag">用户留存分析</span>
+                            <span class="confirm-ref-tag">活跃用户分层</span>
+                            <span class="confirm-ref-tag">渠道ROI分析</span>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /page-view-metric -->
+
+            <!-- 保存确认弹窗 -->
+            <div class="confirm-overlay" id="saveMetricConfirm">
+                <div class="confirm-box">
+                    <div class="confirm-header">
+                        <span class="confirm-header-title">保存确认</span>
+                        <button class="confirm-close" onclick="closeSaveConfirm()">&times;</button>
+                    </div>
+                    <div class="confirm-body">
+                        <div class="confirm-icon">!</div>
+                        <div class="confirm-text">确定要保存对该指标的修改吗？<br><span style="font-size:12px; color:#8c8c8c;">保存后变更将立即生效，引用该指标的分析模版将使用新的配置。</span></div>
+                    </div>
+                    <div class="confirm-footer">
+                        <button class="btn btn-default" onclick="closeSaveConfirm()">取消</button>
+                        <button class="btn btn-primary" style="background:#722ed1; border-color:#722ed1;" onclick="confirmSaveMetric()">确定保存</button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- ==================== 从埋点平台同步 弹窗 ==================== -->
+    <div class="modal-overlay" id="syncModal">
+        <div class="modal">
+            <div class="modal-title">从埋点平台同步事件</div>
+            <div class="modal-desc">拉取埋点平台已注册的事件及字段定义，同步到数据平台元数据管理。</div>
+            
+            <div class="modal-section">
+                <div class="modal-section-title">检测到以下新注册事件（可勾选同步）</div>
+                <div class="field-list">
+                    <div class="field-list-header">
+                        <span><input type="checkbox" class="checkbox" checked></span>
+                        <span>事件名</span>
+                        <span>事件中文名</span>
+                        <span>字段数</span>
+                    </div>
+                    <div class="field-list-row">
+                        <span><input type="checkbox" class="checkbox" checked></span>
+                        <span>share_event</span>
+                        <span>分享事件</span>
+                        <span>12</span>
+                    </div>
+                    <div class="field-list-row">
+                        <span><input type="checkbox" class="checkbox" checked></span>
+                        <span>deep_link_open</span>
+                        <span>深度链接打开</span>
+                        <span>8</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-section">
+                <div class="modal-section-title">已同步事件的字段变更</div>
+                <div style="font-size:13px; color:#8c8c8c; padding: 12px; background:#fafafa; border-radius:6px;">
+                    <div style="margin-bottom:6px;"><strong style="color:#262626;">page_view</strong>：新增 2 个字段（<span style="color:#52c41a">page_duration</span>、<span style="color:#52c41a">referrer_type</span>）</div>
+                    <div><strong style="color:#262626;">button_click</strong>：无变更</div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-default" onclick="closeSyncModal()">取消</button>
+                <button class="btn btn-primary" onclick="closeSyncModal()">确认同步</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 事件详情 弹窗 ==================== -->
+    <div class="modal-overlay" id="detailModal">
+        <div class="modal" style="width: 720px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                <div class="modal-title">page_view - 页面浏览</div>
+                <span class="status status-synced" style="font-size:13px;"><span class="status-dot"></span>校验通过</span>
+            </div>
+            <div class="modal-desc">
+                注册来源：埋点平台 &nbsp;|&nbsp; 平台：iOS / Android / Web &nbsp;|&nbsp; 最新同步时间：2026-02-13 14:20
+            </div>
+            
+            <div class="modal-section">
+                <div class="modal-section-title">字段列表（24 个字段）</div>
+                <div class="field-list">
+                    <div class="field-list-header" style="grid-template-columns: 40px 1fr 1fr 80px 60px;">
+                        <span>#</span>
+                        <span>字段名</span>
+                        <span>字段中文名</span>
+                        <span>类型</span>
+                        <span>操作</span>
+                    </div>
+                    <div class="field-list-row" style="grid-template-columns: 40px 1fr 1fr 80px 60px;">
+                        <span style="color:#8c8c8c">1</span>
+                        <span>event_time</span>
+                        <span>事件时间</span>
+                        <span><span class="type-tag">TIMESTAMP</span></span>
+                        <span><span class="icon-btn" style="color:#ff4d4f;" onclick="openDeleteConfirm()">删除</span></span>
+                    </div>
+                    <div class="field-list-row" style="grid-template-columns: 40px 1fr 1fr 80px 60px;">
+                        <span style="color:#8c8c8c">2</span>
+                        <span>user_id</span>
+                        <span>用户ID</span>
+                        <span><span class="type-tag">STRING</span></span>
+                        <span><span class="icon-btn" style="color:#ff4d4f;" onclick="openDeleteConfirm()">删除</span></span>
+                    </div>
+                    <div class="field-list-row" style="grid-template-columns: 40px 1fr 1fr 80px 60px;">
+                        <span style="color:#8c8c8c">3</span>
+                        <span>device_id</span>
+                        <span>设备ID</span>
+                        <span><span class="type-tag">STRING</span></span>
+                        <span><span class="icon-btn" style="color:#ff4d4f;" onclick="openDeleteConfirm()">删除</span></span>
+                    </div>
+                    <div class="field-list-row" style="grid-template-columns: 40px 1fr 1fr 80px 60px;">
+                        <span style="color:#8c8c8c">4</span>
+                        <span>page_url</span>
+                        <span>页面URL</span>
+                        <span><span class="type-tag">STRING</span></span>
+                        <span><span class="icon-btn" style="color:#ff4d4f;" onclick="openDeleteConfirm()">删除</span></span>
+                    </div>
+                    <div class="field-list-row" style="grid-template-columns: 40px 1fr 1fr 80px 60px;">
+                        <span style="color:#8c8c8c">5</span>
+                        <span>page_title</span>
+                        <span>页面标题</span>
+                        <span><span class="type-tag">STRING</span></span>
+                        <span><span class="icon-btn" style="color:#ff4d4f;" onclick="openDeleteConfirm()">删除</span></span>
+                    </div>
+                    <div class="field-list-row" style="grid-template-columns: 40px 1fr 1fr 80px 60px;">
+                        <span style="color:#8c8c8c">6</span>
+                        <span>page_duration</span>
+                        <span>页面停留时长</span>
+                        <span><span class="type-tag">INT</span></span>
+                        <span><span class="icon-btn" style="color:#ff4d4f;" onclick="openDeleteConfirm()">删除</span></span>
+                    </div>
+                    <div class="field-list-row" style="color: #8c8c8c; font-style:italic; grid-template-columns: 40px 1fr 1fr 80px 60px;">
+                        <span></span>
+                        <span colspan="3">... 共 24 个字段</span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-default" onclick="closeDetailModal()">关闭</button>
+                <button class="btn btn-primary">编辑字段映射</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 指标详情弹窗已移除，改为内嵌详情页 -->
+
+    <!-- ==================== 分享指标弹窗 ==================== -->
+    <div class="modal-overlay" id="shareModal">
+        <div class="modal" style="width: 520px;">
+            <div class="modal-title">分享指标</div>
+            <div class="modal-desc">将指标分享给其他用户，对方可查看详情并在分析中使用该指标，但无法修改指标口径。</div>
+
+            <div class="modal-section">
+                <div class="modal-section-title">添加分享对象</div>
+                <div class="share-input-row">
+                    <input class="form-input" type="text" placeholder="搜索用户姓名或邮箱">
+                    <button class="btn btn-primary">添加</button>
+                </div>
+            </div>
+
+            <div class="modal-section">
+                <div class="modal-section-title">已分享的用户</div>
+                <div class="share-user-list">
+                    <div class="share-user-row">
+                        <div class="share-user-info">
+                            <span class="share-avatar">赵</span>
+                            <div>
+                                <div style="font-weight:500; color:#262626;">赵六</div>
+                                <div style="font-size:11px; color:#8c8c8c;">zhaoliu@company.com</div>
+                            </div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span class="perm-badge perm-readonly">🔒 只读</span>
+                            <span class="icon-btn" style="color:#ff4d4f; font-size:12px;">移除</span>
+                        </div>
+                    </div>
+                    <div class="share-user-row">
+                        <div class="share-user-info">
+                            <span class="share-avatar" style="background:#722ed1;">孙</span>
+                            <div>
+                                <div style="font-weight:500; color:#262626;">孙七</div>
+                                <div style="font-size:11px; color:#8c8c8c;">sunqi@company.com</div>
+                            </div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span class="perm-badge perm-readonly">🔒 只读</span>
+                            <span class="icon-btn" style="color:#ff4d4f; font-size:12px;">移除</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-default" onclick="closeShareModal()">取消</button>
+                <button class="btn btn-primary" onclick="closeShareModal()">确认分享</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 删除字段二次确认弹窗 ==================== -->
+    <div class="confirm-overlay" id="deleteConfirm">
+        <div class="confirm-box">
+            <div class="confirm-header">
+                <span class="confirm-header-title">提示</span>
+                <button class="confirm-close" onclick="closeDeleteConfirm()">&times;</button>
+            </div>
+            <div class="confirm-body">
+                <span class="confirm-icon">!</span>
+                <span class="confirm-text">确定要删除该字段？删除后引用该字段的分析模版均受影响</span>
+            </div>
+            <div class="confirm-ref-section">
+                <div class="confirm-ref-title">引用该字段的分析模版：</div>
+                <div class="confirm-ref-list" id="refListVisible">
+                    <span class="confirm-ref-tag">用户留存分析</span>
+                    <span class="confirm-ref-tag">广告转化漏斗</span>
+                    <span class="confirm-ref-tag">日活跃用户趋势</span>
+                </div>
+                <div class="confirm-ref-collapsed" id="refListCollapsed">
+                    <span class="confirm-ref-tag">付费用户分层</span>
+                    <span class="confirm-ref-tag">新用户激活路径</span>
+                    <span class="confirm-ref-tag">渠道ROI分析</span>
+                    <span class="confirm-ref-tag">用户生命周期</span>
+                    <span class="confirm-ref-tag">流失预警看板</span>
+                </div>
+                <div style="margin-top: 8px;">
+                    <span class="confirm-ref-toggle" id="refToggleBtn" onclick="toggleRefList()">展开更多（5个）▼</span>
+                </div>
+            </div>
+            <div class="confirm-footer">
+                <button class="btn btn-default" onclick="closeDeleteConfirm()">取消</button>
+                <button class="btn btn-primary" style="background:#722ed1; border-color:#722ed1;" onclick="closeDeleteConfirm()">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ===== 模块级导航切换 ===== */
+        function switchModule(module) {
+            document.getElementById('module-events').style.display = 'none';
+            document.getElementById('module-metrics').style.display = 'none';
+            document.querySelectorAll('.sidebar-item').forEach(function(el) { el.classList.remove('active'); });
+
+            if (module === 'events') {
+                document.getElementById('module-events').style.display = 'block';
+                document.getElementById('nav-module-events').classList.add('active');
+                document.getElementById('nav-events-sub').style.display = 'block';
+            } else if (module === 'metrics') {
+                document.getElementById('module-metrics').style.display = 'block';
+                document.getElementById('nav-module-metrics').classList.add('active');
+                document.getElementById('nav-events-sub').style.display = 'none';
+            }
+        }
+
+        /* ===== 事件管理 Tab 切换 ===== */
+        function switchTab(type) {
+            switchModule('events');
+            document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+            document.querySelectorAll('.sidebar-sub-item').forEach(function(t) { t.classList.remove('active'); });
+            document.querySelectorAll('.content-panel').forEach(function(p) { p.style.display = 'none'; });
+
+            if (type === 'processed') {
+                document.getElementById('tab-processed').classList.add('active');
+                document.getElementById('nav-processed').classList.add('active');
+                document.getElementById('content-processed').style.display = 'block';
+            } else {
+                document.getElementById('tab-tracking').classList.add('active');
+                document.getElementById('nav-tracking').classList.add('active');
+                document.getElementById('content-tracking').style.display = 'block';
+            }
+        }
+
+        /* ===== 事件管理弹窗 ===== */
+        function openSyncModal() {
+            document.getElementById('syncModal').classList.add('show');
+        }
+        function closeSyncModal() {
+            document.getElementById('syncModal').classList.remove('show');
+        }
+        function openDetailModal(name) {
+            document.getElementById('detailModal').classList.add('show');
+        }
+        function closeDetailModal() {
+            document.getElementById('detailModal').classList.remove('show');
+        }
+
+        function toggleVisibility(el) {
+            var row = el.closest('tr');
+            var statusTag = row.querySelectorAll('td')[4].querySelector('.tag');
+            if (statusTag.textContent === '显示') {
+                statusTag.textContent = '隐藏';
+                statusTag.className = 'tag tag-hidden';
+                el.textContent = '显示';
+            } else {
+                statusTag.textContent = '显示';
+                statusTag.className = 'tag tag-visible';
+                el.textContent = '隐藏';
+            }
+        }
+
+        /* ===== 上传事件页面 ===== */
+        function openUploadEventPage() {
+            document.getElementById('content-processed').style.display = 'none';
+            document.getElementById('page-upload-event').style.display = 'block';
+        }
+        function closeUploadEventPage() {
+            document.getElementById('page-upload-event').style.display = 'none';
+            document.getElementById('content-processed').style.display = 'block';
+        }
+        /* ===== 删除字段确认弹窗 ===== */
+        function openDeleteConfirm() {
+            document.getElementById('deleteConfirm').classList.add('show');
+            var collapsed = document.getElementById('refListCollapsed');
+            collapsed.classList.remove('show');
+            document.getElementById('refToggleBtn').innerHTML = '展开更多（5个）▼';
+        }
+        function closeDeleteConfirm() {
+            document.getElementById('deleteConfirm').classList.remove('show');
+        }
+        function toggleRefList() {
+            var collapsed = document.getElementById('refListCollapsed');
+            var btn = document.getElementById('refToggleBtn');
+            if (collapsed.classList.contains('show')) {
+                collapsed.classList.remove('show');
+                btn.innerHTML = '展开更多（5个）▼';
+            } else {
+                collapsed.classList.add('show');
+                btn.innerHTML = '收起 ▲';
+            }
+        }
+
+        /* ===== 指标分组折叠 ===== */
+        function toggleGroup(group) {
+            var rows = document.querySelectorAll('.group-' + group);
+            var arrow = document.getElementById('arrow-' + group);
+            var isCollapsed = arrow.classList.contains('collapsed');
+            rows.forEach(function(r) {
+                if (isCollapsed) {
+                    r.classList.remove('collapsed');
+                } else {
+                    r.classList.add('collapsed');
+                }
+            });
+            arrow.classList.toggle('collapsed');
+        }
+
+        /* ===== 指标创建页面 ===== */
+        function openCreateMetricModal() {
+            document.getElementById('module-metrics').style.display = 'none';
+            document.getElementById('page-create-metric').style.display = 'block';
+        }
+        function closeCreateMetricPage() {
+            document.getElementById('page-create-metric').style.display = 'none';
+            document.getElementById('module-metrics').style.display = 'block';
+        }
+
+        function updateCounter(inputId, counterId, max) {
+            var len = document.getElementById(inputId).value.length;
+            var counter = document.getElementById(counterId);
+            counter.textContent = len;
+            counter.style.color = len >= max ? '#ff4d4f' : '#bfbfbf';
+        }
+
+        function onLevelChange() {
+            var level = document.getElementById('createMetricLevel').value;
+            var el = document.getElementById('projectSelectGroup');
+            el.style.display = (level === 'group') ? 'flex' : 'none';
+        }
+
+        function onScenarioChange() {
+            var sel = document.getElementById('scenarioSelect');
+            if (sel.value === '__new__') {
+                document.getElementById('newScenarioInput').style.display = 'block';
+                sel.value = '';
+            }
+        }
+        function addNewScenario() {
+            var name = document.getElementById('newScenarioName').value.trim();
+            if (!name) return;
+            var sel = document.getElementById('scenarioSelect');
+            var opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name + '（默认分组）';
+            sel.insertBefore(opt, sel.querySelector('option[value="__new__"]'));
+            sel.value = name;
+            document.getElementById('newScenarioInput').style.display = 'none';
+            document.getElementById('newScenarioName').value = '';
+        }
+        function cancelNewScenario() {
+            document.getElementById('newScenarioInput').style.display = 'none';
+            document.getElementById('newScenarioName').value = '';
+            document.getElementById('scenarioSelect').value = '';
+        }
+
+        var _metricEditSource = 'view';
+        var _metricLevelKey = 'personal';
+
+        function populateViewPage(row) {
+            var cells = row.querySelectorAll('td');
+            var cnName = cells[0].textContent.trim();
+            var enName = cells[1].textContent.trim();
+            var scenario = cells[2].textContent.trim();
+            var metricType = cells[3].textContent.trim();
+            var createMethod = cells[4].textContent.trim();
+            var subject = cells[5].textContent.trim();
+            var creator = cells[6].textContent.trim();
+            var updater = cells[7].textContent.trim();
+            var updateTime = cells[8].textContent.trim();
+            var formula = row.getAttribute('data-formula') || '—';
+
+            var levelTag = '个人'; var levelClass = 'tag-level-personal'; var levelText = '个人 — 仅自己可见和修改'; _metricLevelKey = 'personal';
+            if (row.classList.contains('group-company')) { levelTag = '公司级'; levelClass = 'tag-level-company'; levelText = '公司级 — 全员可见，仅管理员可修改'; _metricLevelKey = 'company'; }
+            else if (row.classList.contains('group-group')) { levelTag = '项目组'; levelClass = 'tag-level-group'; levelText = '项目组 — 项目组成员可见和修改'; _metricLevelKey = 'group'; }
+            else if (row.classList.contains('group-shared')) { levelTag = '分享'; levelClass = 'tag-shared'; levelText = '他人分享 — 可查看使用，不可修改'; _metricLevelKey = 'shared'; }
+
+            document.getElementById('viewMetricPageTitle').textContent = cnName;
+            document.getElementById('viewMetricLevelTag').textContent = levelTag;
+            document.getElementById('viewMetricLevelTag').className = 'tag ' + levelClass;
+            document.getElementById('viewCreateMethod').textContent = createMethod;
+            document.getElementById('viewSubject').textContent = subject;
+            document.getElementById('viewScenario').textContent = scenario;
+            document.getElementById('viewLevel').textContent = levelText;
+            document.getElementById('viewFormula').textContent = formula;
+            document.getElementById('viewCnName').textContent = cnName;
+            document.getElementById('viewEnName').textContent = enName;
+            document.getElementById('viewCnDesc').textContent = '—';
+            document.getElementById('viewEnDesc').textContent = '—';
+            document.getElementById('viewMetricType').textContent = metricType;
+            document.getElementById('viewCreator').textContent = creator;
+            document.getElementById('viewUpdater').textContent = updater;
+            document.getElementById('viewUpdateTime').textContent = updateTime;
+
+            document.getElementById('editCreateMethod').value = createMethod;
+            document.getElementById('editSubject').value = subject;
+            document.getElementById('editScenario').value = scenario;
+            document.getElementById('editLevel').value = _metricLevelKey;
+            document.getElementById('editFormula').value = formula;
+            document.getElementById('editCnName').value = cnName;
+            document.getElementById('editEnName').value = enName;
+            document.getElementById('editCnDesc').value = '';
+            document.getElementById('editEnDesc').value = '';
+
+            var projectRow = document.getElementById('viewProjectRow');
+            if (row.classList.contains('group-group')) {
+                var subHeader = row.previousElementSibling;
+                while (subHeader && !subHeader.classList.contains('sub-group-header')) { subHeader = subHeader.previousElementSibling; }
+                if (subHeader) {
+                    var projName = subHeader.querySelector('.sub-group-name');
+                    var pn = projName ? projName.textContent : '—';
+                    document.getElementById('viewProject').textContent = pn;
+                    document.getElementById('editProject').value = pn;
+                    projectRow.style.display = 'flex';
+                } else { projectRow.style.display = 'none'; }
+            } else { projectRow.style.display = 'none'; }
+        }
+
+        function setViewMode() {
+            document.getElementById('viewModeActions').style.display = '';
+            document.getElementById('editModeActions').style.display = 'none';
+            var page = document.getElementById('page-view-metric');
+            page.querySelectorAll('.view-el').forEach(function(el) { el.style.display = ''; });
+            page.querySelectorAll('.edit-el').forEach(function(el) { el.style.display = 'none'; });
+        }
+
+        function setEditMode() {
+            document.getElementById('viewModeActions').style.display = 'none';
+            document.getElementById('editModeActions').style.display = '';
+            var page = document.getElementById('page-view-metric');
+            page.querySelectorAll('.view-el').forEach(function(el) { el.style.display = 'none'; });
+            page.querySelectorAll('.edit-el').forEach(function(el) { el.style.display = ''; });
+            onEditLevelChange();
+        }
+
+        function openMetricDetail(el) {
+            var row = el.closest('tr');
+            if (!row) return;
+            _metricEditSource = 'view';
+            populateViewPage(row);
+            setViewMode();
+            document.getElementById('module-metrics').style.display = 'none';
+            document.getElementById('page-view-metric').style.display = 'block';
+        }
+
+        function openMetricEdit(el) {
+            var row = el.closest('tr');
+            if (!row) return;
+            _metricEditSource = 'list';
+            populateViewPage(row);
+            setEditMode();
+            document.getElementById('module-metrics').style.display = 'none';
+            document.getElementById('page-view-metric').style.display = 'block';
+        }
+
+        function enterEditMode() {
+            _metricEditSource = 'view';
+            setEditMode();
+        }
+
+        function cancelMetricEdit() {
+            if (document.getElementById('editModeActions').style.display !== 'none') {
+                if (_metricEditSource === 'list') {
+                    document.getElementById('page-view-metric').style.display = 'none';
+                    document.getElementById('module-metrics').style.display = 'block';
+                    return;
+                }
+                setViewMode();
+                return;
+            }
+            document.getElementById('page-view-metric').style.display = 'none';
+            document.getElementById('module-metrics').style.display = 'block';
+        }
+
+        function onEditLevelChange() {
+            var lv = document.getElementById('editLevel').value;
+            var pr = document.getElementById('viewProjectRow');
+            pr.style.display = (lv === 'group') ? 'flex' : 'none';
+        }
+
+        function showSaveConfirm() {
+            document.getElementById('saveMetricConfirm').classList.add('show');
+        }
+        function closeSaveConfirm() {
+            document.getElementById('saveMetricConfirm').classList.remove('show');
+        }
+        function confirmSaveMetric() {
+            closeSaveConfirm();
+            document.getElementById('page-view-metric').style.display = 'none';
+            document.getElementById('module-metrics').style.display = 'block';
+        }
+
+        function openShareModal() {
+            document.getElementById('shareModal').classList.add('show');
+        }
+        function closeShareModal() {
+            document.getElementById('shareModal').classList.remove('show');
+        }
+
+        function toggleMetricStatus(el) {
+            var row = el.closest('tr');
+            var cells = row.querySelectorAll('td');
+            var statusTag = null;
+            for (var i = 0; i < cells.length; i++) {
+                var tag = cells[i].querySelector('.tag-online, .tag-offline, .tag-draft');
+                if (tag) { statusTag = tag; break; }
+            }
+            if (!statusTag) return;
+            if (statusTag.textContent === '已上线') {
+                statusTag.textContent = '已下线';
+                statusTag.className = 'tag tag-offline';
+                el.textContent = '上线';
+            } else {
+                statusTag.textContent = '已上线';
+                statusTag.className = 'tag tag-online';
+                el.textContent = '下线';
+            }
+        }
+
+        /* ===== 指标表格：点击名称/查看/编辑 ===== */
+        document.getElementById('metricTable').addEventListener('click', function(e) {
+            var target = e.target;
+            if (target.classList.contains('link') && target.closest('.group-row') && !target.closest('.group-header')) {
+                openMetricDetail(target);
+                return;
+            }
+            if (target.classList.contains('icon-btn') && target.textContent.trim() === '查看') {
+                openMetricDetail(target);
+                return;
+            }
+            if (target.classList.contains('icon-btn') && target.textContent.trim() === '编辑') {
+                openMetricEdit(target);
+                return;
+            }
+        });
+
+        /* ===== 点击遮罩关闭弹窗 ===== */
+        document.querySelectorAll('.modal-overlay, .confirm-overlay').forEach(function(overlay) {
+            overlay.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('show');
+                }
+            });
+        });
+    </script>
+    </div><!-- /page-wrapper -->
+</body>
+</html>
